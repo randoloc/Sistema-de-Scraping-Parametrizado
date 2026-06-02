@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+  .wrapper { max-width: 600px; margin: 0 auto; background: #ffffff; }
+  .header { background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; padding: 32px 24px; text-align: center; }
+  .header h1 { font-size: 20px; margin: 0 0 4px; }
+  .header p { font-size: 13px; opacity: 0.8; margin: 0; }
+  .body { padding: 24px; }
+  .stats { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat { flex: 1; min-width: 100px; background: #f8fafc; border-radius: 8px; padding: 12px; text-align: center; }
+  .stat .num { font-size: 24px; font-weight: 700; color: #2563eb; }
+  .stat .label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+  .source { font-size: 13px; color: #475569; background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 16px; word-break: break-all; }
+  .item { border-bottom: 1px solid #e2e8f0; padding: 12px 0; }
+  .item:last-child { border-bottom: none; }
+  .item .field-name { font-size: 11px; color: #94a3b8; text-transform: uppercase; }
+  .item .field-value { font-size: 14px; color: #1e293b; }
+  .btn { display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; margin-top: 16px; }
+  .footer { padding: 24px; text-align: center; font-size: 12px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>📊 Resultados de Scraping</h1>
+    <p>{{ source }}</p>
+  </div>
+  <div class="body">
+    <div class="stats">
+      <div class="stat"><div class="num">{{ total }}</div><div class="label">Items</div></div>
+      <div class="stat"><div class="num">{{ errors|length }}</div><div class="label">Errores</div></div>
+      {% if elapsed %}<div class="stat"><div class="num">{{ "%.1fs"|format(elapsed) }}</div><div class="label">Tiempo</div></div>{% endif %}
+    </div>
+
+    <div class="source">🔗 {{ source }}</div>
+
+    {% if items %}
+      {% for item in items %}
+      <div class="item">
+        {% for key, value in item.data.items() %}
+        <div class="field-name">{{ key }}</div>
+        <div class="field-value">{{ value if value is not none else "—" }}</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color: #64748b; text-align: center; padding: 24px 0;">No se encontraron resultados.</p>
+    {% endif %}
+
+    {% if has_more %}
+    <p style="color: #64748b; font-size: 13px;">... y {{ total_items - 10 }} resultados más.</p>
+    {% endif %}
+
+    {% if results_url %}
+    <div style="text-align: center;">
+      <a href="{{ results_url }}" class="btn">Ver resultados completos</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="footer">Enviado por ScrapperGenérico</div>
+</div>
+</body>
+</html>

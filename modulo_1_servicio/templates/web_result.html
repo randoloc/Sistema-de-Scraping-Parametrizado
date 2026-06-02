@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f2f5; color: #1a1a2e; line-height: 1.6;
+  }
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: white; padding: 32px 24px; text-align: center;
+  }
+  .header h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; }
+  .header p { opacity: 0.8; font-size: 0.875rem; }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .stat-card {
+    background: white; border-radius: 12px; padding: 16px; text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .stat-card .value { font-size: 1.75rem; font-weight: 700; color: #2563eb; }
+  .stat-card .label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .source-info {
+    background: white; border-radius: 12px; padding: 16px; margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .source-info h2 { font-size: 0.875rem; color: #64748b; margin-bottom: 8px; }
+  .source-info .url { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.875rem; word-break: break-all; }
+  .item {
+    background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: box-shadow 0.2s;
+  }
+  .item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .item-rank {
+    background: #2563eb; color: white; width: 24px; height: 24px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700;
+  }
+  .item-source { font-size: 0.75rem; color: #64748b; }
+  .item-data { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+  .field { }
+  .field-name { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .field-value { font-size: 0.9375rem; color: #1a1a2e; }
+  .errors {
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-top: 24px;
+  }
+  .errors h3 { color: #dc2626; font-size: 0.875rem; margin-bottom: 8px; }
+  .errors li { color: #7f1d1d; font-size: 0.8125rem; margin-left: 16px; }
+  .empty {
+    text-align: center; padding: 48px 24px; color: #64748b;
+  }
+  .empty h2 { font-size: 1.25rem; margin-bottom: 8px; }
+  .footer {
+    text-align: center; padding: 24px; color: #94a3b8; font-size: 0.75rem;
+  }
+  @media (max-width: 480px) {
+    .header h1 { font-size: 1.25rem; }
+    .stat-card .value { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📊 Resultados de Scraping</h1>
+  <p>Generado el {{ generated_at }}</p>
+</div>
+<div class="container">
+  <div class="stats">
+    <div class="stat-card"><div class="value">{{ total }}</div><div class="label">Items</div></div>
+    <div class="stat-card"><div class="value">{{ errors|length }}</div><div class="label">Errores</div></div>
+    <div class="stat-card"><div class="value">{{ "%.1fs"|format(elapsed) if elapsed else "—" }}</div><div class="label">Tiempo</div></div>
+    <div class="stat-card"><div class="value">{{ source_type }}</div><div class="label">Tipo</div></div>
+  </div>
+
+  <div class="source-info">
+    <h2>Fuente</h2>
+    <div class="url">{{ source }}</div>
+  </div>
+
+  {% if items %}
+    {% for item in items %}
+    <div class="item">
+      <div class="item-header">
+        <span class="item-rank">{{ item.rank }}</span>
+        <span class="item-source">{{ item.source_url }}</span>
+      </div>
+      <div class="item-data">
+        {% for key, value in item.data.items() %}
+        <div class="field">
+          <div class="field-name">{{ key }}</div>
+          <div class="field-value">{{ value if value is not none else "—" }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      <h2>🔍 Sin resultados</h2>
+      <p>No se encontraron datos para los parámetros especificados.</p>
+    </div>
+  {% endif %}
+
+  {% if errors %}
+  <div class="errors">
+    <h3>⚠️ Errores durante la ejecución</h3>
+    <ul>{% for err in errors %}<li>{{ err }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+</div>
+<div class="footer">ScrapperGenérico &mdash; Resultado {{ result_id }}</div>
+</body>
+</html>

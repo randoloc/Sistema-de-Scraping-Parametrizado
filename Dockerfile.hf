@@ -1,0 +1,20 @@
+# Dockerfile para HuggingFace Spaces
+# Usar: Copiar modulo_1_servicio/ al Space de HF
+# Copiar este Dockerfile como Dockerfile en la raíz del Space
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copiar requirements
+COPY requirements-hf.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
+COPY . .
+
+# Exponer puerto
+EXPOSE 7860
+
+# Uvicorn sirve en el puerto que HF espera
+CMD ["uvicorn", "modulo_1_servicio.main:app", "--host", "0.0.0.0", "--port", "7860"]
