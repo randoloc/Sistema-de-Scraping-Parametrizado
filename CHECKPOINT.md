@@ -137,10 +137,63 @@ CHECKPOINT.md                    — Este archivo
 
 ---
 
+---
+
+## 🏗️ Visión Arquitectónica — Sistema Genérico de Búsqueda
+
+### Arquitectura en capas
+
+```
+USUARIO: "autos usados Mexico < 10000"
+         │
+         ▼
+┌─────────────────────────────────┐
+│    INTERPRETE DE CONSULTAS      │  🆕
+│  Extrae: vertical=cars,         │
+│  pais=mexico, max_price=10000   │
+└──────────────┬──────────────────┘
+               ▼
+┌─────────────────────────────────┐
+│    BUSCADOR DE PLANTILLAS       │  🆕
+│  Encuentra adaptadores para     │
+│  "cars" en sitios conocidos     │
+└──────────────┬──────────────────┘
+               ▼
+┌─────────────────────────────────┐
+│    ADAPTADOR DE SITIO (YAML)    │  🆕
+│  Traduce consulta → URL         │
+│  Conoce selectores, paginación  │
+└──────────────┬──────────────────┘
+               ▼
+┌─────────────────────────────────┐
+│    MOTOR DE SCRAPING            │  ✅ EXISTE
+└──────────────┬──────────────────┘
+               ▼
+┌─────────────────────────────────┐
+│    NORMALIZADOR DE RESULTADOS   │  🆕
+│  Unifica datos de múltiples     │
+│  fuentes en schema común        │
+└──────────────┬──────────────────┘
+               ▼
+┌─────────────────────────────────┐
+│    ENTREGA (Web/Email/WA)       │  ✅ EXISTE
+└─────────────────────────────────┘
+```
+
+### Plan de implementación
+
+| Fase | Qué incluye | Estado |
+|------|------------|--------|
+| **Fase 1** — Base sólida | URL normalizer, adaptadores YAML, anti-scraping básico | 🔜 **Arrancando** |
+| **Fase 2** — Biblioteca | Adaptadores para sitios comunes, schema canónico | ⏳ |
+| **Fase 3** — Intérprete | Parseo de consultas, buscador de plantillas | ⏳ |
+| **Fase 4** — GUI | Navegación por verticales, búsqueda guiada | ⏳ |
+
+---
+
 ## 🚧 Pendiente para próxima sesión
 
-- [ ] Sistema de **templates/jobs pre-configurados** para búsquedas verticales
-- [ ] **Auto-corrección de URLs** (agregar `https://` si falta)
-- [ ] **Parámetros de búsqueda** (país, zona, precio, etc.)
-- [ ] **Manejo de anti-scraping** (User-Agent rotativo, delays, retry)
-- [ ] Verificar tests siguen pasando después de cambios en email_sender.py
+- [ ] **Fase 1**: URL normalizer (agregar `https://` automático)
+- [ ] **Fase 1**: Sistema de adaptadores en YAML (SiteAdapter)
+- [ ] **Fase 1**: Anti-scraping (retry, User-Agent rotation, delays)
+- [ ] Verificar tests siguen pasando
