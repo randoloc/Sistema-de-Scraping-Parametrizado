@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from scrapper_generico.core.engine import ScraperEngine
@@ -32,7 +32,7 @@ class BaseExtractor(ScraperEngine):
 
     async def execute(self, config: ScrapeConfig) -> ScrapeResult:
         """Ejecuta la extracción: fetch -> parse -> extract."""
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         errors: list[str] = []
         all_items: list[ExtractedItem] = []
 
@@ -44,7 +44,7 @@ class BaseExtractor(ScraperEngine):
             logger.exception("Error executing extractor")
             errors.append(str(e))
 
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
 
         return ScrapeResult(
             config=config,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from scrapper_generico.core.models import (
@@ -152,7 +152,7 @@ class Orchestrator:
             config.source_type,
         )
 
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         errors: list[str] = []
         all_items: list[ExtractedItem] = []
 
@@ -175,7 +175,7 @@ class Orchestrator:
             logger.exception("Error inesperado durante scraping")
             errors.append(f"Unexpected error: {e}")
 
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
 
         return ScrapeResult(
             config=config,

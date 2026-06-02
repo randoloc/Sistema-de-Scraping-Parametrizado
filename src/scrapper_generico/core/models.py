@@ -7,7 +7,7 @@ qué configurar, qué extraer y cómo reportar errores.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum, auto
 from typing import Any
 
@@ -147,7 +147,7 @@ class ExtractedItem:
 
     data: dict[str, Any]
     source_url: str
-    extracted_at: datetime = field(default_factory=datetime.utcnow)
+    extracted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     rank: int = 0
 
 
@@ -169,7 +169,7 @@ class ScrapeResult:
     items: tuple[ExtractedItem, ...] = ()
     total_found: int = 0
     errors: tuple[str, ...] = ()
-    started_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     pages_scraped: int = 0
 

@@ -67,7 +67,7 @@ def _dict_to_config(data: dict[str, Any]) -> ScrapeConfig:
             default=f.get("default"),
         )
         for f in data.get("fields", [])
-    ]
+    )
 
     filter_raw = data.get("filters", {})
     filters = FilterConfig(
