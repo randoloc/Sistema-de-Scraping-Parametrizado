@@ -102,14 +102,52 @@ class BaseExtractor(ScraperEngine):
 
     @staticmethod
     def _parse_price(value: str) -> float | None:
+        """Parsea un precio desde string, manejando formatos US y europeos.
+
+        $39.99          → 39.99
+        €1.234,56       → 1234.56
+        1,234.56 USD    → 1234.56
+        39.99           → 39.99
+        """
         import re
-        match = re.search(r"[\d,.]+", value.replace(".", "").replace(",", "."))
-        if match:
-            try:
-                return float(match.group())
-            except ValueError:
-                return None
-        return None
+
+        cleaned = re.sub(r"[^\d,.]", "", value)
+        if not cleaned:
+            return None
+
+        dots = cleaned.count(".")
+        commas = cleaned.count(",")
+
+        try:
+            # Sin separadores
+            if dots == 0 and commas == 0:
+                return float(cleaned)
+
+            # US: 1,234.56 → quita comas
+            if commas > 0 and dots > 0 and cleaned.rfind(".") > cleaned.rfind(","):
+                return float(cleaned.replace(",", ""))
+
+            # EU: 1.234,56 → quita puntos, coma a punto
+            if commas > 0 and dots > 0 and cleaned.rfind(",") > cleaned.rfind("."):
+                return float(cleaned.replace(".", "").replace(",", "."))
+
+            # Solo comas
+            if commas > 0 and dots == 0:
+                parts = cleaned.split(",")
+                if len(parts[-1]) == 2:
+                    return float(cleaned.replace(",", "."))
+                return float(cleaned.replace(",", ""))
+
+            # Solo puntos
+            if dots > 0 and commas == 0:
+                parts = cleaned.split(".")
+                if len(parts[-1]) == 2 and len(parts) == 2:
+                    return float(cleaned)
+                return float(cleaned.replace(".", ""))
+
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return None
 
     @abstractmethod
     def _select_one(self, container: Any, selector: str) -> Any | None:

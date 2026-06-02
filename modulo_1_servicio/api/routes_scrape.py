@@ -10,6 +10,9 @@ from fastapi import APIRouter, HTTPException
 from modulo_1_servicio.config.schema import load_config_from_dict
 from modulo_1_servicio.deliveries.web import generate_results_page
 from modulo_1_servicio.scraping.engine import Orchestrator
+from modulo_1_servicio.scraping.extractors.beautifulsoup_extractor import (
+    BeautifulSoupExtractor,
+)
 from modulo_1_servicio.scraping.models import ScrapeResult
 
 router = APIRouter(prefix="/api", tags=["scraping"])
@@ -19,6 +22,10 @@ router = APIRouter(prefix="/api", tags=["scraping"])
 _results_store: dict[str, ScrapeResult] = {}
 
 _orchestrator = Orchestrator()
+_orchestrator.register_engine("web_page", BeautifulSoupExtractor())
+_orchestrator.register_engine("api", BeautifulSoupExtractor())
+_orchestrator.register_engine("html_file", BeautifulSoupExtractor())
+_orchestrator.register_engine("sitemap", BeautifulSoupExtractor())
 
 
 @router.post("/scrape")
