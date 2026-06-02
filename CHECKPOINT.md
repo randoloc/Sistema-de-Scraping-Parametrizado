@@ -16,13 +16,27 @@
 | **PythonBridge** (slots Python↔QML) | ✅ Completo | Dashboard, scraping, resultados, entregas, historial |
 | **QML UI** | ✅ Wireado | Todos los botones conectados al scraper real |
 | **Historial SQLite** | ✅ Persistente | `~/.scrapper_generico/admin.db` |
-| **Tests** | ✅ **60/60 pasando** | Unitarios, mocks y 8 tests de integración |
+| **Tests** | ✅ **96/96 pasando** | 75 unitarios + 13 integración + 8 nuevos archivos test |
+| **Fase 1 — Base Genérica** | ✅ **Completada** | URL normalizer, adapters YAML, anti-scraping, endpoint, tests |
+| **Adapters API** | ✅ `/api/adapters` | Listado con filtro por vertical, estructuras Pydantic |
 | **README** | ✅ Creado | En raíz del repo |
 | **Repo GitHub** | ✅ Creado | `randoloC/Sistema-de-Scraping-Parametrizado` |
 
 ---
 
 ## 📋 Últimas sesiones
+
+### Sesión 4 (2026-06-02) — Fase 1 Completa: Endpoint adapters + 36 tests nuevos
+- ✅ Agregado `GET /api/adapters` con filtro opcional `?vertical=`
+- ✅ Escritos 36 tests nuevos:
+  - 9 tests para `normalize_url()` (con/sin protocolo, vacía, inválida)
+  - 5 tests para `UARotator` (rotación, circular, pool default)
+  - 4 tests para `RetryPolicy` (éxito, timeout, retry con éxito, HTTP errors)
+  - 5 tests para `DomainDelay` (primera request, espera, suficiente tiempo, custom delay, dominios distintos)
+  - 9 tests para `AdapterLoader` (YAML válido/inválido, filtros, count)
+  - 4 tests para endpoint `/api/adapters` (listado, filtro vertical, estructura)
+- ✅ Suite completa: **96 tests, 0 fallas** (antes 60)
+- ✅ Todos los tasks de Fase 1 marcados como completados en `openspec/`
 
 ### Sesión 3 (2026-06-02) — Email delivery + Fix QML + Sistema funcionando
 - ✅ Corregido bug de `padding` en QML (Rectangle no tiene `padding` en QtQuick 2.15)
@@ -118,6 +132,10 @@ modulo_1_servicio/
   deliveries/email_sender.py     — EmailDelivery con soporte .env
   scraping/engine.py             — Orchestrator + FilterEngine
   scraping/extractors/           — BaseExtractor + BeautifulSoupExtractor
+  scraping/url_utils.py          — normalize_url() (Fase 1)
+  scraping/anti_scraping.py      — UARotator, RetryPolicy, DomainDelay (Fase 1)
+  scraping/adapters/models.py    — SiteAdapter, AdapterField (Pydantic)
+  scraping/adapters/loader.py    — AdapterLoader (carga YAML)
 
 modulo_2_admin/
   core/client.py                 — ScrapperClient (HTTP)
@@ -128,8 +146,12 @@ modulo_2_admin/
 
 tests/
   modulo_2/test_integration.py   — 8 tests de integración admin ↔ scraper
-  modulo_1/                      — 52 tests del servicio
+  modulo_1/                      — 88 tests del servicio
+    test_url_utils.py            — 9 tests para normalize_url
+    test_anti_scraping.py        — 14 tests para UARotator/RetryPolicy/DomainDelay
+    test_adapter_loader.py       — 9 tests para AdapterLoader
 
+adapters/                        — Adaptadores YAML (ej: example_httpbin.yaml)
 .env                             — Credenciales SMTP (no comitear)
 .env.example                     — Template de configuración
 CHECKPOINT.md                    — Este archivo
@@ -184,8 +206,8 @@ USUARIO: "autos usados Mexico < 10000"
 
 | Fase | Qué incluye | Estado |
 |------|------------|--------|
-| **Fase 1** — Base sólida | URL normalizer, adaptadores YAML, anti-scraping básico | 🔜 **Arrancando** |
-| **Fase 2** — Biblioteca | Adaptadores para sitios comunes, schema canónico | ⏳ |
+| **Fase 1** — Base sólida | URL normalizer, adaptadores YAML, anti-scraping, endpoint, tests | ✅ **Completada** |
+| **Fase 2** — Biblioteca | Adaptadores para sitios comunes, schema canónico | ⏳ Siguiente |
 | **Fase 3** — Intérprete | Parseo de consultas, buscador de plantillas | ⏳ |
 | **Fase 4** — GUI | Navegación por verticales, búsqueda guiada | ⏳ |
 
@@ -193,7 +215,7 @@ USUARIO: "autos usados Mexico < 10000"
 
 ## 🚧 Pendiente para próxima sesión
 
-- [ ] **Fase 1**: URL normalizer (agregar `https://` automático)
-- [ ] **Fase 1**: Sistema de adaptadores en YAML (SiteAdapter)
-- [ ] **Fase 1**: Anti-scraping (retry, User-Agent rotation, delays)
-- [ ] Verificar tests siguen pasando
+- [ ] **Fase 2**: Biblioteca de adaptadores para sitios comunes (ML, OLX, etc.)
+- [ ] **Fase 2**: Schema canónico de resultados
+- [ ] **Fase 2**: Normalizador de datos multi-fuente
+- [ ] **Fase 3**: Intérprete de consultas en lenguaje natural

@@ -1,7 +1,7 @@
 """Extractor concreto usando BeautifulSoup + httpx para scraping web real.
 
 Este es el extractor que realmente hace el trabajo:
-1. Fetch con httpx (async)
+1. Fetch con httpx (async) con anti-scraping (UA rotativo, retry, delays)
 2. Parseo con BeautifulSoup
 3. Extracción de campos por selectores CSS
 """
@@ -14,10 +14,17 @@ from typing import Any
 import httpx
 from bs4 import BeautifulSoup, Tag
 
+from modulo_1_servicio.scraping.anti_scraping import DomainDelay, RetryPolicy, UARotator
 from modulo_1_servicio.scraping.extractors.base import BaseExtractor
 from modulo_1_servicio.scraping.models import ScrapeConfig, ScraperConnectionError, ScraperParseError
+from modulo_1_servicio.scraping.url_utils import normalize_url
 
 logger = logging.getLogger(__name__)
+
+# Singleton global de mecanismos anti-scraping
+_ua_rotator = UARotator()
+_retry_policy = RetryPolicy(max_retries=3, base_delay=1.0)
+_domain_delay = DomainDelay(default_delay=1.0)
 
 
 class BeautifulSoupExtractor(BaseExtractor):
@@ -28,43 +35,62 @@ class BeautifulSoupExtractor(BaseExtractor):
     - Paginación por URL template
     - Headers personalizados y User-Agent
     - Timeout configurable
+    - Anti-scraping: UA rotativo, retry con backoff, delay entre requests
+    - Normalización automática de URLs
     """
 
-    DEFAULT_USER_AGENT = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
-
     async def fetch_content(self, config: ScrapeConfig) -> BeautifulSoup:
-        """Obtiene el HTML de la fuente y lo parsea con BeautifulSoup."""
+        """Obtiene el HTML de la fuente y lo parsea con BeautifulSoup.
+
+        Incluye:
+        - Normalización de URL (agrega ``https://`` si falta)
+        - Rotación de User-Agent
+        - Reintentos con backoff exponencial en errores transitorios
+        - Delay mínimo entre requests al mismo dominio
+        """
+        # 1. Normalizar URL
+        source = normalize_url(config.source)
+
+        # 2. Preparar headers con UA rotativo
         headers = dict(config.headers)
         if config.user_agent:
             headers.setdefault("User-Agent", config.user_agent)
         else:
-            headers.setdefault("User-Agent", self.DEFAULT_USER_AGENT)
+            headers.setdefault("User-Agent", _ua_rotator.get_ua())
+
+        # 3. Extraer dominio para delay
+        from urllib.parse import urlparse
+        domain = urlparse(source).netloc
 
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(config.timeout),
                 follow_redirects=True,
             ) as client:
-                response = await client.get(config.source, headers=headers)
+                # 4. Delay anti-bloqueo
+                await _domain_delay.wait_if_needed(domain, config.rate_limit)
+
+                # 5. Request con retry
+                async def _do_request() -> httpx.Response:
+                    return await client.get(source, headers=headers)
+
+                response = await _retry_policy.execute(_do_request)
                 response.raise_for_status()
+
         except httpx.TimeoutException as e:
             raise ScraperConnectionError(
                 f"Timeout después de {config.timeout}s",
-                source=config.source,
+                source=source,
             ) from e
         except httpx.HTTPStatusError as e:
             raise ScraperConnectionError(
                 f"HTTP {e.response.status_code}",
-                source=config.source,
+                source=source,
             ) from e
         except httpx.RequestError as e:
             raise ScraperConnectionError(
                 str(e),
-                source=config.source,
+                source=source,
             ) from e
 
         try:
@@ -72,7 +98,7 @@ class BeautifulSoupExtractor(BaseExtractor):
         except Exception as e:
             raise ScraperParseError(
                 f"Error parseando HTML: {e}",
-                source=config.source,
+                source=source,
             ) from e
 
     def _select_one(self, container: Any, selector: str) -> Any | None:

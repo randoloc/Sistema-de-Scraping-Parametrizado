@@ -1,0 +1,13 @@
+# Adaptador de ejemplo: httpbin.org/html
+# Sitio de prueba que devuelve HTML estático con un h1 y un párrafo.
+name: httpbin_html
+site: httpbin.org
+vertical: test
+search_url: "http://httpbin.org/html"
+fields:
+  - name: titulo
+    selector: h1
+    type: text
+  - name: parrafo
+    selector: p
+    type: text

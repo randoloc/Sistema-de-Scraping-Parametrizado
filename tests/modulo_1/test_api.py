@@ -56,3 +56,43 @@ class TestScrapeAPI:
             json={"emails": []},
         )
         assert response.status_code == 404
+
+
+class TestAdaptersAPI:
+    def test_list_adapters(self, client: TestClient) -> None:
+        """GET /api/adapters retorna lista de adaptadores."""
+        response = client.get("/api/adapters")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total" in data
+        assert "adapters" in data
+        assert isinstance(data["adapters"], list)
+
+    def test_list_adapters_with_vertical(self, client: TestClient) -> None:
+        """Filtrar por vertical retorna solo los de esa vertical."""
+        response = client.get("/api/adapters?vertical=test")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["vertical"] == "test"
+        assert isinstance(data["adapters"], list)
+
+    def test_list_adapters_unknown_vertical(self, client: TestClient) -> None:
+        """Vertical sin adaptadores retorna lista vacía."""
+        response = client.get("/api/adapters?vertical=nonexistent")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["adapters"] == []
+
+    def test_adapter_has_expected_structure(self, client: TestClient) -> None:
+        """Cada adaptador en la respuesta tiene los campos esperados."""
+        response = client.get("/api/adapters")
+        assert response.status_code == 200
+        data = response.json()
+        if data["total"] > 0:
+            adapter = data["adapters"][0]
+            assert "name" in adapter
+            assert "site" in adapter
+            assert "vertical" in adapter
+            assert "search_url" in adapter
+            assert "fields" in adapter
