@@ -34,13 +34,13 @@ ApplicationWindow {
     }
 
     header: ToolBar {
+        padding: 8
         background: Rectangle {
             color: "#1a1a2e"
         }
         RowLayout {
             anchors.fill: parent
             spacing: 8
-            padding: 8
 
             Label {
                 text: "ScrapperGenérico"
@@ -191,13 +191,15 @@ ApplicationWindow {
                     }
                 }
 
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: 12
-                    color: bgPrimary
-                    border.color: "#e2e8f0"
                     padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -285,7 +287,6 @@ ApplicationWindow {
                     visible: false
                     height: 40
                     color: success
-                    padding: 12
                     Label {
                         id: resultBannerText
                         anchors.centerIn: parent
@@ -295,16 +296,18 @@ ApplicationWindow {
                 }
 
                 // Conexión
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
-                    radius: 12
-                    color: bgPrimary
-                    border.color: "#e2e8f0"
                     padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
 
                     ColumnLayout {
+                        anchors.fill: parent
                         spacing: 12
-                        width: parent.width
 
                         Label { text: "Fuente"; font.weight: Font.Bold; color: textPrimary }
 
@@ -325,17 +328,19 @@ ApplicationWindow {
                 }
 
                 // Campos
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: 12
-                    color: bgPrimary
-                    border.color: "#e2e8f0"
                     padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
 
                     ColumnLayout {
+                        anchors.fill: parent
                         spacing: 8
-                        width: parent.width
 
                         Label { text: "Campos a Extraer"; font.weight: Font.Bold; color: textPrimary }
 
@@ -568,11 +573,11 @@ ApplicationWindow {
                                     radius: 8
                                     color: bgSecondary
                                     border.color: "#e2e8f0"
-                                    padding: 12
 
                                     ColumnLayout {
                                         spacing: 4
                                         anchors.fill: parent
+                                        anchors.margins: 12
                                         Repeater {
                                             model: {
                                                 var keys = Object.keys(model.data);
@@ -645,16 +650,18 @@ ApplicationWindow {
                 }
 
                 // Seleccionar operación
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
-                    radius: 12
-                    color: bgPrimary
-                    border.color: "#e2e8f0"
                     padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
 
                     ColumnLayout {
+                        anchors.fill: parent
                         spacing: 8
-                        width: parent.width
                         Label { text: "Operación a entregar"; font.weight: Font.Bold; color: textPrimary }
                         ComboBox {
                             id: deliveryOpCombo
@@ -666,16 +673,18 @@ ApplicationWindow {
                 }
 
                 // Email
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
-                    radius: 12
-                    color: bgPrimary
-                    border.color: "#e2e8f0"
                     padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
 
                     ColumnLayout {
+                        anchors.fill: parent
                         spacing: 8
-                        width: parent.width
                         Label { text: "Correo Electrónico"; font.weight: Font.Bold; color: textPrimary }
                         RowLayout {
                             spacing: 8
@@ -722,16 +731,18 @@ ApplicationWindow {
                 }
 
                 // WhatsApp
-                Rectangle {
+                Pane {
                     Layout.fillWidth: true
-                    radius: 12
-                    color: bgPrimary
-                    border.color: "#e2e8f0"
                     padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
 
                     ColumnLayout {
+                        anchors.fill: parent
                         spacing: 8
-                        width: parent.width
                         Label { text: "WhatsApp"; font.weight: Font.Bold; color: textPrimary }
                         RowLayout {
                             spacing: 8
@@ -956,10 +967,10 @@ ApplicationWindow {
                 Rectangle {
                     anchors.fill: parent
                     color: bgPrimary
-                    padding: 16
 
                     ColumnLayout {
                         anchors.fill: parent
+                        anchors.margins: 16
                         spacing: 12
 
                         RowLayout {

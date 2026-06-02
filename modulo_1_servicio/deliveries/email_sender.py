@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
 
 from modulo_1_servicio.scraping.models import ScrapeResult
@@ -20,20 +22,23 @@ TEMPLATE_DIR = str(HERE / "templates")
 
 _env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
 
+# Cargar .env desde la raíz del proyecto
+load_dotenv(HERE.parent / ".env")
+
 
 class EmailDelivery:
     """Entrega de resultados por correo electrónico.
 
-    Configuración vía atributos de clase o variables de entorno.
+    Configuración vía variables de entorno (.env) o atributos de clase.
     """
 
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    from_email: str = "scrapper@generico.dev"
-    use_sendgrid: bool = False
-    sendgrid_api_key: str = ""
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user: str = os.getenv("SMTP_USER", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    from_email: str = os.getenv("FROM_EMAIL", "scrapper@generico.dev")
+    use_sendgrid: bool = os.getenv("USE_SENDGRID", "false").lower() == "true"
+    sendgrid_api_key: str = os.getenv("SENDGRID_API_KEY", "")
 
     def send_results(
         self,
