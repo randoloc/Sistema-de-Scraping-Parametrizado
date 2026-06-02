@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+virtualenv/
+
+# Testing
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/
+output/
+logs/
+*.db
+*.sqlite3
+
+# Playwright
+ms-playwright/
+
+# OS
+*.log
+*.tmp
+
+# Config with secrets
+.env
+*.env.local

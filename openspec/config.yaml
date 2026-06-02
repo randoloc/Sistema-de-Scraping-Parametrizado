@@ -1,0 +1,70 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.11+, Pydantic, httpx, Playwright, BeautifulSoup
+  Architecture: Pipeline-based scraping engine with pluggable extractors
+  Testing: pytest 7.4+ with pytest-asyncio
+  Style: Ruff (lint+fmt), MyPy strict, 100 char line length
+  Package: src/scrapper_generico (src layout)
+
+strict_tdd: true
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules (core/, extractors/, config/)
+    - Specify if change affects the ScrapeConfig schema
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Include edge cases: empty results, connection errors, malformed HTML
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Specify error handling strategy for each component
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+  apply:
+    - Follow existing code patterns and conventions
+    - Write tests BEFORE implementation (strict TDD)
+    - Run `ruff check .` and `mypy src/` after changes
+  verify:
+    - Run `pytest -v --tb=short` if test infrastructure exists
+    - Compare implementation against every spec scenario
+    - Verify type hints with mypy
+  archive:
+    - Warn before merging destructive deltas (large removals)
+    - Update config.yaml if project context changed
+
+testing:
+  strict_tdd: true
+  detected: "2026-06-02"
+  runner:
+    command: "pytest -v --tb=short"
+    framework: pytest
+  layers:
+    unit:
+      available: true
+      tool: pytest
+    integration:
+      available: false
+      tool: "pytest + httpx (respx for mocking)"
+    e2e:
+      available: false
+      tool: "playwright"
+  coverage:
+    available: true
+    command: "pytest --cov=scrapper_generico --cov-report=term-missing"
+  quality:
+    linter:
+      available: true
+      command: "ruff check ."
+    type_checker:
+      available: true
+      command: "mypy src/"
+    formatter:
+      available: true
+      command: "ruff format . --check"
