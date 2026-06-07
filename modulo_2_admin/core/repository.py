@@ -1,7 +1,7 @@
 """Repositorio local para persistencia del Módulo 2.
 
-Almacena el historial de operaciones localmente en SQLite
-para que el usuario pueda verlo incluso sin conexión al servicio.
+Almacena el historial de operaciones y servicios de scraping
+localmente en SQLite.
 """
 
 from __future__ import annotations
@@ -12,9 +12,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from modulo_2_admin.core.models import ServiceDefinition
+
 
 class LocalRepository:
-    """Repositorio SQLite local para el historial de operaciones."""
+    """Repositorio SQLite local para el historial de operaciones y servicios."""
 
     def __init__(self, db_path: str | None = None) -> None:
         if db_path is None:
@@ -37,7 +39,31 @@ class LocalRepository:
                 results_json TEXT
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS services (
+                service_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                config_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS service_runs (
+                run_id TEXT PRIMARY KEY,
+                service_id TEXT NOT NULL,
+                operation_id TEXT NOT NULL,
+                filter_values TEXT,
+                total_found INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (service_id) REFERENCES services(service_id)
+            )
+        """)
         self._conn.commit()
+
+    # ─── Operaciones (existente) ─────────────────────────────
 
     def save_operation(
         self,
@@ -117,6 +143,116 @@ class LocalRepository:
             "created_at": row[6],
             "results": json.loads(row[7]) if row[7] else None,
         }
+
+    # ─── Servicios (nuevo) ───────────────────────────────────
+
+    def save_service(self, service: ServiceDefinition) -> None:
+        self._conn.execute(
+            "INSERT OR REPLACE INTO services "
+            "(service_id, name, description, config_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                service.service_id,
+                service.name,
+                service.description,
+                json.dumps(service.to_dict()),
+                service.created_at,
+                service.updated_at,
+            ),
+        )
+        self._conn.commit()
+
+    def get_services(self) -> list[dict[str, Any]]:
+        cursor = self._conn.execute(
+            "SELECT service_id, name, description, config_json, "
+            "created_at, updated_at FROM services "
+            "ORDER BY updated_at DESC"
+        )
+        result = []
+        for row in cursor.fetchall():
+            config = json.loads(row[3]) if row[3] else {}
+            sources = config.get("sources", [])
+            result.append({
+                "service_id": row[0],
+                "name": row[1],
+                "description": row[2],
+                "source": sources[0]["url"] if sources else config.get("source", ""),
+                "sources_count": len(sources),
+                "sources": [s["url"] for s in sources],
+                "field_count": len(config.get("fields", [])),
+                "filter_count": len(config.get("field_filters", [])),
+                "created_at": row[4],
+                "updated_at": row[5],
+            })
+        return result
+
+    def get_service(self, service_id: str) -> ServiceDefinition | None:
+        cursor = self._conn.execute(
+            "SELECT config_json FROM services WHERE service_id = ?",
+            (service_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        data = json.loads(row[0])
+        return ServiceDefinition.from_dict(data)
+
+    def delete_service(self, service_id: str) -> None:
+        self._conn.execute(
+            "DELETE FROM service_runs WHERE service_id = ?",
+            (service_id,),
+        )
+        self._conn.execute(
+            "DELETE FROM services WHERE service_id = ?",
+            (service_id,),
+        )
+        self._conn.commit()
+
+    # ─── Service runs ────────────────────────────────────────
+
+    def save_service_run(
+        self,
+        run_id: str,
+        service_id: str,
+        operation_id: str,
+        filter_values: dict[str, Any] | None = None,
+        total_found: int = 0,
+        status: str = "running",
+    ) -> None:
+        self._conn.execute(
+            "INSERT OR REPLACE INTO service_runs "
+            "(run_id, service_id, operation_id, filter_values, total_found, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                run_id,
+                service_id,
+                operation_id,
+                json.dumps(filter_values) if filter_values else "{}",
+                total_found,
+                status,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        self._conn.commit()
+
+    def get_service_runs(self, service_id: str) -> list[dict[str, Any]]:
+        cursor = self._conn.execute(
+            "SELECT run_id, operation_id, filter_values, total_found, "
+            "status, created_at FROM service_runs "
+            "WHERE service_id = ? ORDER BY created_at DESC LIMIT 20",
+            (service_id,),
+        )
+        return [
+            {
+                "run_id": row[0],
+                "operation_id": row[1],
+                "filter_values": json.loads(row[2]) if row[2] else {},
+                "total_found": row[3],
+                "status": row[4],
+                "created_at": row[5],
+            }
+            for row in cursor.fetchall()
+        ]
 
     def close(self) -> None:
         self._conn.close()

@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +24,15 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 from modulo_2_admin.core.client import ScrapperClient
-from modulo_2_admin.core.models import FieldConfig, FilterConfig, PaginationConfig, ScrapeJobConfig
+from modulo_2_admin.core.models import (
+    DeliveryConfig,
+    FieldConfig,
+    FieldFilterDef,
+    FilterConfig,
+    PaginationConfig,
+    ScrapeJobConfig,
+    ServiceDefinition,
+)
 from modulo_2_admin.core.repository import LocalRepository
 
 
@@ -40,6 +50,8 @@ class PythonBridge(QObject):
     operationDetailChanged = Signal(str)
     searchResultsChanged = Signal(str)
     adaptersChanged = Signal(str)
+    servicesChanged = Signal()
+    serviceRunsChanged = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -87,65 +99,230 @@ class PythonBridge(QObject):
     def get_dashboard_stats(self) -> str:
         history = self._repository.get_history(limit=5)
         total_ops = len(self._repository.get_history(limit=9999))
+        services = self._repository.get_services()
+        total_runs = sum(
+            len(self._repository.get_service_runs(s["service_id"]))
+            for s in services
+        )
         return json.dumps({
             "total_operations": total_ops,
+            "total_services": len(services),
+            "total_runs": total_runs,
             "connected": self._connected,
             "recent": history,
+            "services": services[:4],
         })
 
-    # --- Scraping ---
+    # ═══════════════════════════════════════════════════════════
+    # SERVICIOS DE SCRAPING
+    # ═══════════════════════════════════════════════════════════
+
+    @Slot(result=str)
+    def get_services(self) -> str:
+        """Retorna la lista de servicios guardados."""
+        return json.dumps(self._repository.get_services())
+
+    @Slot(str, result=str)
+    def get_service_detail(self, service_id: str) -> str:
+        """Retorna el detalle completo de un servicio."""
+        svc = self._repository.get_service(service_id)
+        if svc is None:
+            return json.dumps({"error": "Servicio no encontrado"})
+        return json.dumps(svc.to_dict())
 
     @Slot(str, str, str, result=str)
-    def run_scrape(self, source: str, source_type: str, fields_json: str) -> str:
-        """Ejecuta un scraping desde QML.
+    def save_service(
+        self, service_id: str, name: str, config_json: str
+    ) -> str:
+        """Guarda (crea o actualiza) un servicio de scraping.
 
         Args:
-            source: URL o fuente
-            source_type: tipo de fuente
-            fields_json: JSON con la lista de campos
+            service_id: ID existente o "" para nuevo
+            name: Nombre del servicio
+            config_json: JSON con toda la configuración
 
         Returns:
-            operation_id o mensaje de error
+            service_id del servicio guardado
         """
         try:
-            fields_data = json.loads(fields_json)
+            data = json.loads(config_json)
+            now = datetime.now(timezone.utc).isoformat()
+
+            if service_id:
+                # Actualizar existente
+                existing = self._repository.get_service(service_id)
+                if existing is None:
+                    return json.dumps({"error": "Servicio no encontrado"})
+                svc = ServiceDefinition.from_dict(data)
+                svc.service_id = service_id
+                svc.name = name
+                svc.updated_at = now
+                svc.created_at = existing.created_at
+            else:
+                # Crear nuevo
+                svc = ServiceDefinition.from_dict(data)
+                svc.service_id = svc.generate_id()
+                svc.name = name
+                svc.created_at = now
+                svc.updated_at = now
+
+            self._repository.save_service(svc)
+            self.servicesChanged.emit()
+            return json.dumps({"service_id": svc.service_id, "name": svc.name})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    @Slot(str, result=str)
+    def delete_service(self, service_id: str) -> str:
+        """Elimina un servicio y sus ejecuciones."""
+        try:
+            self._repository.delete_service(service_id)
+            self.servicesChanged.emit()
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    # ─── Ejecutar Servicio ───────────────────────────────────
+
+    @Slot(str, str, result=str)
+    def run_service(self, service_id: str, filter_values_json: str) -> str:
+        """Ejecuta un servicio de scraping con valores de filtro.
+
+        Scrapea cada fuente configurada y combina los resultados.
+
+        Args:
+            service_id: ID del servicio a ejecutar
+            filter_values_json: JSON con valores para los filtros
+
+        Returns:
+            JSON con operation_id y resultados
+        """
+        try:
+            svc = self._repository.get_service(service_id)
+            if svc is None:
+                return json.dumps({"error": "Servicio no encontrado"})
+
+            filter_values = json.loads(filter_values_json)
+
+            if not svc.sources:
+                return json.dumps({"error": "El servicio no tiene fuentes configuradas"})
+
+            # Scrapear cada fuente
+            all_items = []
+            all_errors = []
+            total_elapsed = 0.0
+            first_op_id = None
+            overall_status = "completed"
+
+            # Construir campos base
             fields = [
                 FieldConfig(
-                    name=f["name"],
-                    selector=f["selector"],
-                    field_type=f.get("fieldType", "text"),
+                    name=f.name,
+                    selector=f.selector,
+                    field_type=f.field_type,
                 )
-                for f in fields_data
+                for f in svc.fields
             ]
 
-            config = ScrapeJobConfig(
-                source=source,
-                source_type=source_type,
-                fields=fields,
+            for src in svc.sources:
+                config = ScrapeJobConfig(
+                    source=src.url,
+                    source_type=src.source_type,
+                    fields=fields,
+                    delivery=DeliveryConfig(generate_web=False),
+                    timeout=svc.timeout,
+                )
+
+                api_dict = config.to_api_dict()
+                api_dict["user_filters"] = filter_values
+
+                try:
+                    response = self._client.run_scrape(api_dict)
+                    if first_op_id is None:
+                        first_op_id = response.operation_id
+
+                    # Obtener resultados detallados
+                    results = self._client.get_results(response.operation_id)
+                    for item in results.items:
+                        item["_source"] = src.name
+                        all_items.append(item)
+
+                    if results.errors:
+                        all_errors.extend(results.errors)
+                    if results.elapsed_seconds:
+                        total_elapsed += results.elapsed_seconds
+
+                    if response.status == "completed_with_errors":
+                        overall_status = "completed_with_errors"
+
+                except Exception as e:
+                    all_errors.append(f"[{src.name}] {e}")
+                    overall_status = "completed_with_errors"
+
+            # Combinar resultados en una sola operación
+            combined_op_id = uuid.uuid4().hex[:8]
+
+            # Guardar en historial
+            source_label = f"{svc.name} ({len(svc.sources)} fuentes)"
+            self._repository.save_operation(
+                operation_id=combined_op_id,
+                source=source_label,
+                config=svc.to_dict(),
             )
 
-            response = self._client.run_scrape(config.to_api_dict())
+            # Actualizar con resultados combinados
+            combined_results = {
+                "items": all_items,
+                "errors": all_errors,
+                "sources": [{"name": s.name, "url": s.url} for s in svc.sources],
+            }
+            self._repository.update_results(
+                operation_id=combined_op_id,
+                total_found=len(all_items),
+                errors_count=len(all_errors),
+                results=combined_results,
+            )
 
-            self._repository.save_operation(
-                operation_id=response.operation_id,
-                source=source,
-                config=config.to_api_dict(),
+            # Guardar ejecución de servicio
+            run_id = uuid.uuid4().hex[:12]
+            self._repository.save_service_run(
+                run_id=run_id,
+                service_id=service_id,
+                operation_id=combined_op_id,
+                filter_values=filter_values,
+                total_found=len(all_items),
+                status=overall_status,
             )
 
             self._last_result = {
-                "operation_id": response.operation_id,
-                "status": response.status,
-                "total_found": response.total_found,
+                "operation_id": combined_op_id,
+                "status": overall_status,
+                "total_found": len(all_items),
+                "total_errors": len(all_errors),
+                "service_name": svc.name,
+                "sources_count": len(svc.sources),
             }
             self.lastResultChanged.emit(self.lastResult)
             self.historyChanged.emit()
+            self.serviceRunsChanged.emit()
 
-            return response.operation_id
+            return json.dumps({
+                "operation_id": combined_op_id,
+                "status": overall_status,
+                "total_found": len(all_items),
+                "total_errors": len(all_errors),
+                "sources": [s.name for s in svc.sources],
+            })
         except Exception as e:
-            error_msg = f"Error: {e}"
+            err = f"Error: {e}"
             self._last_result = {"error": str(e)}
             self.lastResultChanged.emit(self.lastResult)
-            return error_msg
+            return json.dumps({"error": str(e)})
+
+    @Slot(str, result=str)
+    def get_service_runs(self, service_id: str) -> str:
+        """Retorna las ejecuciones de un servicio."""
+        return json.dumps(self._repository.get_service_runs(service_id))
 
     # --- Resultados ---
 
@@ -169,6 +346,18 @@ class PythonBridge(QObject):
                 "items": results.items,
             })
         except Exception as e:
+            # Fallback: buscar en el repositorio local (resultados combinados)
+            op = self._repository.get_operation(operation_id)
+            if op and op.get("results"):
+                r = op["results"]
+                return json.dumps({
+                    "operation_id": operation_id,
+                    "source": op.get("source", ""),
+                    "total_found": op.get("total_found", 0),
+                    "errors": r.get("errors", []),
+                    "elapsed_seconds": None,
+                    "items": r.get("items", []),
+                })
             return json.dumps({"error": str(e)})
 
     @Slot(str, result=str)
