@@ -34,6 +34,7 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 ## 📋 Historial de Sesiones
 
 ### Sesión 6 — 2026-07-23 (Cierre): Tests arreglados + Frontend Gradio
+**Commit**: `c4d0b23`
 
 **Qué se hizo**:
 1. ✅ Arreglados 3 tests fallando (118/118):
