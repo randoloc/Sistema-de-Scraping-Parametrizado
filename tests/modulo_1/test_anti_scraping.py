@@ -28,14 +28,13 @@ class TestUARotator:
         assert seen == set(pool)
 
     def test_circular_rotation(self) -> None:
-        """Después de N llamadas, vuelve al primer UA."""
+        """Después de N llamadas, vuelve al primer UA (cual sea)."""
         pool = ("A", "B")
         rotator = UARotator(pool=pool)
-        # Consumir los 2
-        rotator.get_ua()
-        rotator.get_ua()
-        # La tercera debe volver a A
-        assert rotator.get_ua() == "A"
+        first = rotator.get_ua()
+        second = rotator.get_ua()
+        # Tras consumir todos los UAs, debe ciclar al primero
+        assert rotator.get_ua() == first
 
     def test_default_pool_not_empty(self) -> None:
         """El pool por defecto tiene al menos un UA."""

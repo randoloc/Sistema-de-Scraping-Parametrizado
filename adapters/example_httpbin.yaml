@@ -11,3 +11,8 @@ fields:
   - name: parrafo
     selector: p
     type: text
+
+# Mapeo a schema canónico (Fase 2)
+canonical_map:
+  title: titulo
+  description: parrafo

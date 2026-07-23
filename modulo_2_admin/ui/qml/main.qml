@@ -63,6 +63,16 @@ ApplicationWindow {
                 }
             }
             ToolButton {
+                text: "Búsqueda"
+                highlighted: currentView === "search"
+                onClicked: { currentView = "search"; loadSearchVerticales(); }
+                contentItem: Text {
+                    text: parent.text
+                    color: currentView === "search" ? accent : "white"
+                    font.pixelSize: 13
+                }
+            }
+            ToolButton {
                 text: "Nuevo Scraper"
                 highlighted: currentView === "scrape"
                 onClicked: currentView = "scrape"
@@ -109,10 +119,11 @@ ApplicationWindow {
         anchors.fill: parent
         currentIndex: {
             if (currentView === "dashboard") return 0;
-            if (currentView === "scrape") return 1;
-            if (currentView === "results") return 2;
-            if (currentView === "delivery") return 3;
-            if (currentView === "history") return 4;
+            if (currentView === "search") return 1;
+            if (currentView === "scrape") return 2;
+            if (currentView === "results") return 3;
+            if (currentView === "delivery") return 4;
+            if (currentView === "history") return 5;
             return 0;
         }
 
@@ -264,7 +275,387 @@ ApplicationWindow {
             }
         }
 
-        // ======== Página 1: Nuevo Scraper ========
+        // ======== Página 1: Búsqueda por Vertical ========
+        Rectangle {
+            color: bgSecondary
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 16
+
+                Label {
+                    text: "Búsqueda por Vertical"
+                    font.pixelSize: 22
+                    font.weight: Font.Bold
+                    color: textPrimary
+                }
+
+                // Feedback
+                Rectangle {
+                    id: searchBanner
+                    Layout.fillWidth: true
+                    radius: 8
+                    visible: false
+                    height: 40
+                    Label {
+                        id: searchBannerText
+                        anchors.centerIn: parent
+                        color: "white"
+                        font.pixelSize: 13
+                    }
+                }
+
+                // Configuración de búsqueda
+                Pane {
+                    Layout.fillWidth: true
+                    padding: 16
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 12
+
+                        Label { text: "Parámetros de Búsqueda"; font.weight: Font.Bold; color: textPrimary }
+
+                        RowLayout {
+                            spacing: 12
+                            Layout.fillWidth: true
+
+                            ColumnLayout {
+                                spacing: 4
+                                Layout.fillWidth: true
+                                Label { text: "Vertical"; font.pixelSize: 11; color: textSecondary }
+                                ComboBox {
+                                    id: verticalCombo
+                                    model: ListModel { id: verticalsModel }
+                                    textRole: "display"
+                                    Layout.fillWidth: true
+                                    onCurrentIndexChanged: {
+                                        if (currentIndex >= 0 && verticalsModel.count > 0) {
+                                            updateSitesForVertical();
+                                        }
+                                    }
+                                }
+                            }
+
+                            ColumnLayout {
+                                spacing: 4
+                                Layout.fillWidth: true
+                                Label { text: "Sitio (opcional)"; font.pixelSize: 11; color: textSecondary }
+                                ComboBox {
+                                    id: siteCombo
+                                    model: ListModel { id: sitesModel }
+                                    textRole: "display"
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 12
+                            Layout.fillWidth: true
+
+                            TextField {
+                                id: searchQueryInput
+                                placeholderText: "Ej: autos usados, iPhone 15, departamento en renta..."
+                                Layout.fillWidth: true
+                                onAccepted: runSearch()
+                            }
+
+                            Button {
+                                id: searchBtn
+                                text: "🔍 Buscar"
+                                enabled: searchQueryInput.text.length > 0 && verticalCombo.currentIndex >= 0 && !searchSpinner.running
+                                background: Rectangle {
+                                    radius: 8
+                                    color: parent.enabled ? accent : "#94a3b8"
+                                }
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: "white"
+                                    font.pixelSize: 14
+                                }
+                                onClicked: runSearch()
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 8
+                            BusyIndicator {
+                                id: searchSpinner
+                                running: false
+                                Layout.preferredWidth: 20
+                                Layout.preferredHeight: 20
+                            }
+                            Label {
+                                id: searchStatusLabel
+                                color: textSecondary
+                                font.pixelSize: 12
+                                visible: false
+                            }
+                            Item { Layout.fillWidth: true }
+                            Button {
+                                text: "↻ Recargar Verticales"
+                                flat: true
+                                onClicked: loadSearchVerticales()
+                            }
+                        }
+                    }
+                }
+
+                // Resultados
+                Pane {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    padding: 16
+                    visible: searchResultsModel.count > 0
+                    background: Rectangle {
+                        color: bgPrimary
+                        border.color: "#e2e8f0"
+                        radius: 12
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 12
+
+                        // Summary
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                id: searchSummaryLabel
+                                text: "0 resultados"
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                                color: textPrimary
+                            }
+                            Item { Layout.fillWidth: true }
+                            Label {
+                                id: searchAdaptersLabel
+                                text: ""
+                                font.pixelSize: 12
+                                color: textSecondary
+                            }
+                        }
+
+                        // Results list
+                        ListView {
+                            id: searchResultsList
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            model: ListModel { id: searchResultsModel }
+                            clip: true
+                            spacing: 8
+
+                            delegate: Rectangle {
+                                width: parent.width
+                                height: {
+                                    // Auto height based on content
+                                    var base = 80;
+                                    if (model.description) base += 20;
+                                    return base;
+                                }
+                                radius: 8
+                                color: bgSecondary
+                                border.color: "#e2e8f0"
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 4
+
+                                    // Title + Source badge
+                                    RowLayout {
+                                        spacing: 8
+                                        Layout.fillWidth: true
+
+                                        Label {
+                                            text: model.title || "(Sin título)"
+                                            font.weight: Font.Bold
+                                            font.pixelSize: 14
+                                            color: textPrimary
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+
+                                        Rectangle {
+                                            color: "#dbeafe"
+                                            radius: 4
+                                            height: 20
+                                            implicitWidth: siteLabel.implicitWidth + 8
+                                            Label {
+                                                id: siteLabel
+                                                text: model.source_site || "?"
+                                                font.pixelSize: 10
+                                                color: "#1e40af"
+                                                anchors.centerIn: parent
+                                            }
+                                        }
+                                    }
+
+                                    // Description (if available)
+                                    Label {
+                                        text: model.description || ""
+                                        font.pixelSize: 12
+                                        color: textSecondary
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 2
+                                        visible: text.length > 0
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                        Layout.maximumHeight: 36
+                                    }
+
+                                    // Price + Rank row
+                                    RowLayout {
+                                        spacing: 12
+                                        Layout.fillWidth: true
+
+                                        Label {
+                                            text: model.price ? "$" + Number(model.price).toLocaleString(Qt.locale(), "f", 2) : ""
+                                            font.pixelSize: 16
+                                            font.weight: Font.Bold
+                                            color: "#059669"
+                                            visible: model.price
+                                        }
+
+                                        Label {
+                                            text: model.currency || ""
+                                            font.pixelSize: 11
+                                            color: textSecondary
+                                            visible: model.currency
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        Label {
+                                            text: "#" + (model.rank + 1)
+                                            font.pixelSize: 11
+                                            color: textSecondary
+                                        }
+
+                                        Button {
+                                            text: "Abrir"
+                                            flat: true
+                                            enabled: model.url && model.url.length > 0
+                                            onClicked: {
+                                                if (model.url) {
+                                                    Qt.openUrlExternally(model.url);
+                                                }
+                                            }
+                                            contentItem: Text {
+                                                text: parent.text
+                                                color: parent.enabled ? accent : textSecondary
+                                                font.pixelSize: 12
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Empty state
+                            Label {
+                                anchors.centerIn: parent
+                                text: "Realiza una búsqueda para ver resultados."
+                                color: textSecondary
+                                visible: searchResultsModel.count === 0
+                                font.pixelSize: 14
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Funciones de la página de búsqueda ---
+
+            function loadSearchVerticales() {
+                var raw = python.get_verticals();
+                var data = parseJson(raw);
+                if (!data || data.error) return;
+                verticalsModel.clear();
+                for (var i = 0; i < data.length; i++) {
+                    verticalsModel.append({ display: data[i], value: data[i] });
+                }
+                if (verticalsModel.count > 0) {
+                    verticalCombo.currentIndex = 0;
+                }
+            }
+
+            function updateSitesForVertical() {
+                var vertical = verticalsModel.get(verticalCombo.currentIndex).value;
+                var raw = python.adapters;
+                var adapters = parseJson(raw);
+                if (!adapters) return;
+                sitesModel.clear();
+                sitesModel.append({ display: "Todos los sitios", value: "all" });
+                for (var i = 0; i < adapters.length; i++) {
+                    if (adapters[i].vertical === vertical) {
+                        sitesModel.append({
+                            display: adapters[i].name,
+                            value: adapters[i].name
+                        });
+                    }
+                }
+                siteCombo.currentIndex = 0;
+            }
+
+            function runSearch() {
+                if (!searchQueryInput.text || verticalCombo.currentIndex < 0) return;
+
+                searchSpinner.running = true;
+                searchStatusLabel.text = "Buscando...";
+                searchStatusLabel.visible = true;
+
+                var vertical = verticalsModel.get(verticalCombo.currentIndex).value;
+                var site = siteCombo.currentIndex >= 0 ? sitesModel.get(siteCombo.currentIndex).value : "all";
+
+                var raw = python.search_adapters(searchQueryInput.text, vertical, site);
+                var data = parseJson(raw);
+
+                searchSpinner.running = false;
+
+                if (!data || data.error) {
+                    searchBanner.color = error;
+                    searchBannerText.text = data ? data.error : "Error en búsqueda";
+                    searchBanner.visible = true;
+                    searchStatusLabel.text = "Error";
+                    searchStatusLabel.color = error;
+                    return;
+                }
+
+                // Mostrar resultados
+                searchResultsModel.clear();
+                searchSummaryLabel.text = data.total_found + " resultados";
+                searchAdaptersLabel.text = "en " + data.adapters_used + " adaptador(es)";
+
+                if (data.items) {
+                    for (var i = 0; i < data.items.length; i++) {
+                        searchResultsModel.append(data.items[i]);
+                    }
+                }
+
+                searchBanner.color = success;
+                searchBannerText.text = "Búsqueda completada: " + data.total_found + " resultados";
+                searchBanner.visible = true;
+                searchStatusLabel.text = "OK";
+                searchStatusLabel.color = success;
+
+                // Auto-ocultar banner
+                searchHideTimer.start();
+            }
+
+            Timer {
+                id: searchHideTimer
+                interval: 4000
+                onTriggered: searchBanner.visible = false
+            }
+        }
+
+        // ======== Página 2: Nuevo Scraper ========
         Rectangle {
             color: bgSecondary
             ColumnLayout {

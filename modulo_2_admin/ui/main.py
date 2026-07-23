@@ -38,6 +38,8 @@ class PythonBridge(QObject):
     lastResultChanged = Signal(str)
     historyChanged = Signal()
     operationDetailChanged = Signal(str)
+    searchResultsChanged = Signal(str)
+    adaptersChanged = Signal(str)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -46,7 +48,10 @@ class PythonBridge(QObject):
         self._connected = False
         self._last_result: dict[str, Any] = {}
         self._operation_detail: dict[str, Any] = {}
+        self._search_results: dict[str, Any] = {}
+        self._adapters: list[dict[str, Any]] = []
         self._check_connection()
+        self._refresh_adapters()
 
     # --- Propiedades expuestas a QML ---
 
@@ -211,6 +216,66 @@ class PythonBridge(QObject):
             return json.dumps(result)
         except Exception as e:
             return json.dumps({"error": str(e)})
+
+    # --- Fase 2: Búsqueda por vertical ---
+
+    @Property(str, notify=adaptersChanged)
+    def adapters(self) -> str:
+        return json.dumps(self._adapters)
+
+    @Property(str, notify=searchResultsChanged)
+    def searchResults(self) -> str:
+        return json.dumps(self._search_results)
+
+    def _refresh_adapters(self) -> None:
+        try:
+            self._adapters = self._client.list_adapters()
+        except Exception:
+            self._adapters = []
+        self.adaptersChanged.emit(self.adapters)
+
+    @Slot(result=str)
+    def refresh_adapters(self) -> str:
+        """Recarga la lista de adaptadores desde el servicio."""
+        self._refresh_adapters()
+        return self.adapters
+
+    @Slot(result=str)
+    def get_verticals(self) -> str:
+        """Retorna la lista de verticales disponibles."""
+        try:
+            verticals = self._client.list_verticals()
+            return json.dumps(verticals)
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    @Slot(str, str, str, result=str)
+    def search_adapters(self, query: str, vertical: str, site: str) -> str:
+        """Ejecuta búsqueda multi-adaptador desde QML.
+
+        Args:
+            query: Término de búsqueda.
+            vertical: Vertical (cars, real_estate, etc.).
+            site: Nombre de adaptador específico (o vacío para todos).
+
+        Returns:
+            JSON con resultados normalizados.
+        """
+        try:
+            site_param = site if site and site != "all" else None
+            results = self._client.search(
+                query=query,
+                vertical=vertical,
+                site=site_param,
+            )
+            self._search_results = results
+            self.searchResultsChanged.emit(self.searchResults)
+            return json.dumps(results)
+        except Exception as e:
+            error = {"error": str(e)}
+            self._search_results = error
+            self.searchResultsChanged.emit(self.searchResults)
+            return json.dumps(error)
 
 
 def main() -> None:

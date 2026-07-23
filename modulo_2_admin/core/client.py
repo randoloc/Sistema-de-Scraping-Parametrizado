@@ -134,5 +134,70 @@ class ScrapperClient:
         r.raise_for_status()
         return r.json()
 
+    # --- Fase 2: Búsqueda por adaptadores ---
+
+    def list_adapters(self, vertical: str | None = None) -> list[dict[str, Any]]:
+        """Obtiene la lista de adaptadores disponibles.
+
+        Args:
+            vertical: Opcional, filtrar por vertical.
+
+        Returns:
+            Lista de adaptadores con su configuración.
+        """
+        params = {}
+        if vertical:
+            params["vertical"] = vertical
+        r = self._client.get(
+            f"{self.base_url}/api/adapters",
+            params=params,
+        )
+        r.raise_for_status()
+        data = r.json()
+        return data.get("adapters", [])
+
+    def list_verticals(self) -> list[str]:
+        """Obtiene la lista de verticales disponibles.
+
+        Returns:
+            Lista de nombres de vertical únicos.
+        """
+        adapters = self.list_adapters()
+        verticals = sorted({a.get("vertical", "unknown") for a in adapters})
+        return verticals
+
+    def search(
+        self,
+        query: str,
+        vertical: str,
+        site: str | None = None,
+        max_pages: int = 1,
+    ) -> dict[str, Any]:
+        """Ejecuta una búsqueda multi-adaptador.
+
+        Args:
+            query: Término de búsqueda.
+            vertical: Vertical a buscar.
+            site: Opcional, filtrar a un adaptador específico.
+            max_pages: Páginas por adaptador.
+
+        Returns:
+            Resultados de búsqueda con items normalizados.
+        """
+        payload: dict[str, Any] = {
+            "query": query,
+            "vertical": vertical,
+            "max_pages": max_pages,
+        }
+        if site:
+            payload["site"] = site
+
+        r = self._client.post(
+            f"{self.base_url}/api/search",
+            json=payload,
+        )
+        r.raise_for_status()
+        return r.json()
+
     def close(self) -> None:
         self._client.close()

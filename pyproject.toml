@@ -37,6 +37,7 @@ modulo1 = [
     "uvicorn[standard]>=0.27",
     "jinja2>=3.1",
     "python-multipart>=0.0.6",
+    "gradio>=4.0",
 ]
 modulo2 = [
     "PySide6>=6.6",
@@ -54,6 +55,7 @@ all = [
     "fastapi>=0.109",
     "uvicorn[standard]>=0.27",
     "python-multipart>=0.0.6",
+    "gradio>=4.0",
     "PySide6>=6.6",
     "httpx>=0.25",
     "jinja2>=3.1",

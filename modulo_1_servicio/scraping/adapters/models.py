@@ -37,3 +37,11 @@ class SiteAdapter(BaseModel):
         min_length=1,
         description="Campos a extraer de cada resultado",
     )
+    canonical_map: Optional[dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Mapeo de campos del adaptador al schema canónico. "
+            "Ej: {\"title\": \"nombre\", \"price\": \"precio\"}. "
+            "Si es None, no se aplica normalización."
+        ),
+    )

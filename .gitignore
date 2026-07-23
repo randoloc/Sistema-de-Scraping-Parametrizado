@@ -47,3 +47,6 @@ ms-playwright/
 # Config with secrets
 .env
 *.env.local
+
+# Screenshots / assets not for commit
+google\ app\ password.png

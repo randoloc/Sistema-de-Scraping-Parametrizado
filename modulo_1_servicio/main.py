@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse
 
 from modulo_1_servicio.api.routes_deliver import router as deliver_router
 from modulo_1_servicio.api.routes_scrape import router as scrape_router
+from modulo_1_servicio.api.routes_search import router as search_router
 from modulo_1_servicio.api.routes_whatsapp_webhook import (
     router as whatsapp_router,
 )
@@ -37,6 +38,7 @@ app = FastAPI(
 
 app.include_router(scrape_router)
 app.include_router(deliver_router)
+app.include_router(search_router)
 app.include_router(whatsapp_router)
 
 
