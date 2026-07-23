@@ -12,6 +12,7 @@ from typing import Annotated, Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from modulo_1_servicio.scraping.adapters.loader import AdapterLoader
@@ -19,7 +20,12 @@ from modulo_1_servicio.scraping.engine import Orchestrator
 from modulo_1_servicio.scraping.extractors.beautifulsoup_extractor import (
     BeautifulSoupExtractor,
 )
-from modulo_1_servicio.scraping.models import FieldDefinition, FieldType, ScrapeConfig
+from modulo_1_servicio.scraping.models import (
+    FieldDefinition,
+    FieldType,
+    ScrapeConfig,
+    SourceType,
+)
 from modulo_1_servicio.scraping.normalizer import ResultNormalizer
 
 logger = logging.getLogger(__name__)
@@ -158,7 +164,7 @@ async def search_adapters(payload: SearchRequest) -> dict[str, Any]:
             )
 
             scrape_config = ScrapeConfig(
-                source_type="web_page",
+                source_type=SourceType.WEB_PAGE,
                 source=search_url,
                 fields=fields,
                 container_selector=adapter.container_selector,
@@ -234,3 +240,50 @@ async def search_adapters(payload: SearchRequest) -> dict[str, Any]:
     }
 
     return response
+
+
+@router.get("/demo", include_in_schema=False, response_class=HTMLResponse)
+async def demo_page() -> str:
+    """Página HTML de demostración para probar adaptadores sin internet."""
+    return """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Demo ScrapperGenérico</title>
+<style>
+  .item { border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:6px; }
+  .title { font-size:18px; font-weight:bold; color:#333; }
+  .desc { color:#666; margin:4px 0; }
+  .price { color:#059669; font-weight:bold; font-size:16px; }
+</style>
+</head><body>
+<h1>Resultados de Demo</h1>
+<p>Esta página simula resultados de búsqueda para probar adaptadores.</p>
+
+<div class="item">
+  <div class="title">iPhone 15 Pro Max 256GB</div>
+  <div class="desc">Teléfono inteligente Apple, color titanio natural, pantalla 6.7"</div>
+  <div class="price">$1,299.00</div>
+</div>
+
+<div class="item">
+  <div class="title">Samsung Galaxy S24 Ultra</div>
+  <div class="desc">Teléfono Android, 512GB, S-Pen integrado, pantalla 6.8"</div>
+  <div class="price">$1,199.00</div>
+</div>
+
+<div class="item">
+  <div class="title">MacBook Air M3 15"</div>
+  <div class="desc">Laptop Apple, chip M3, 16GB RAM, 512GB SSD</div>
+  <div class="price">$1,499.00</div>
+</div>
+
+<div class="item">
+  <div class="title">PlayStation 5 Slim</div>
+  <div class="desc">Consola Sony, 1TB SSD, incluye control DualSense</div>
+  <div class="price">$499.99</div>
+</div>
+
+<div class="item">
+  <div class="title">Audífonos Sony WH-1000XM5</div>
+  <div class="desc">Cancelación de ruido activa, 30h batería, Bluetooth 5.2</div>
+  <div class="price">$349.00</div>
+</div>
+</body></html>"""

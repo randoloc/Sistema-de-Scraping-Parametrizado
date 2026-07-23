@@ -27,7 +27,9 @@ def normalize_url(url: str) -> str:
 
     # Re-parse para validar
     parsed = urlparse(url)
-    if not parsed.netloc or "." not in parsed.netloc:
+    if not parsed.netloc:
+        raise ValueError(f"Invalid URL: {url}")
+    if "." not in parsed.netloc and parsed.netloc != "localhost" and not parsed.netloc.startswith("localhost:"):
         raise ValueError(f"Invalid URL: {url}")
 
     return url

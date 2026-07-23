@@ -1,18 +1,24 @@
-# Adaptador de ejemplo: httpbin.org/html
-# Sitio de prueba que devuelve HTML estático con un h1 y un párrafo.
-name: httpbin_html
-site: httpbin.org
+# Adaptador de ejemplo: demo local (no requiere internet)
+# Apunta al endpoint /api/demo del propio servicio.
+# Los selectores buscan items dentro de contenedores .item.
+name: demo_local
+site: localhost
 vertical: test
-search_url: "http://httpbin.org/html"
+search_url: "http://localhost:8000/api/demo"
+container_selector: ".item"
 fields:
   - name: titulo
-    selector: h1
+    selector: ".title"
     type: text
-  - name: parrafo
-    selector: p
+  - name: descripcion
+    selector: ".desc"
     type: text
+  - name: precio
+    selector: ".price"
+    type: price
 
-# Mapeo a schema canónico (Fase 2)
+# Mapeo a schema canónico
 canonical_map:
   title: titulo
-  description: parrafo
+  description: descripcion
+  price: precio

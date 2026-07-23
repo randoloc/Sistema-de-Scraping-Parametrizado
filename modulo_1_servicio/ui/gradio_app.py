@@ -17,7 +17,12 @@ from modulo_1_servicio.scraping.engine import Orchestrator
 from modulo_1_servicio.scraping.extractors.beautifulsoup_extractor import (
     BeautifulSoupExtractor,
 )
-from modulo_1_servicio.scraping.models import FieldDefinition, FieldType, ScrapeConfig
+from modulo_1_servicio.scraping.models import (
+    FieldDefinition,
+    FieldType,
+    ScrapeConfig,
+    SourceType,
+)
 from modulo_1_servicio.scraping.normalizer import ResultNormalizer
 
 logger = logging.getLogger(__name__)
@@ -107,7 +112,7 @@ async def search_action(
             )
 
             config = ScrapeConfig(
-                source_type="web_page",
+                source_type=SourceType.WEB_PAGE,
                 source=search_url,
                 fields=fields,
                 container_selector=adapter.container_selector,
