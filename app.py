@@ -1,4 +1,4 @@
-"""Entry point para HuggingFace Spaces.
+"""Entry point para HuggingFace Spaces — NovaSearch.
 
 Monta el frontend Gradio sobre la API FastAPI existente.
 HF Spaces busca este archivo automáticamente en la raíz.

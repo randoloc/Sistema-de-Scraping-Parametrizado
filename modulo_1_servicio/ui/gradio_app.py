@@ -1,6 +1,6 @@
-"""Frontend Gradio para BuscadorGenérico — versión usuario final.
+"""Frontend Gradio para NovaSearch — buscador multi-site de clasificados cubanos.
 
-Interfaz limpia: escribe qué buscas, selecciona categoría,
+Interfaz elegante: escribe qué buscas, selecciona categoría,
 y obtén resultados en tarjetas visuales con precio, fotos, contacto y más.
 """
 
@@ -42,6 +42,16 @@ _normalizer = ResultNormalizer()
 # ---------------------------------------------------------------------------
 CARDS_CSS = """
 <style>
+/* ─── Paleta NovaSearch ───
+ *  Fondo:     #f5f3ef (cáscara de huevo)
+ *  Primary:   #1e3a5f (navy)
+ *  Accent:    #b45309 (ámbar)
+ *  Teal:      #0d9488 (teal para precios)
+ *  Cards:     #ffffff
+ *  Text:      #1e293b
+ *  Muted:     #64748b
+ * ────────────────────────────────── */
+
 /* ─── Grid de tarjetas ─── */
 .cards-grid {
     display: grid;
@@ -54,16 +64,16 @@ CARDS_CSS = """
 .result-card {
     background: #ffffff;
     border-radius: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(30,58,95,0.06), 0 1px 2px rgba(30,58,95,0.04);
     overflow: hidden;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #e8e4de;
     display: flex;
     flex-direction: column;
 }
 .result-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.05);
+    box-shadow: 0 12px 35px rgba(30,58,95,0.1), 0 4px 8px rgba(30,58,95,0.05);
 }
 
 /* ─── Imagen ─── */
@@ -71,13 +81,13 @@ CARDS_CSS = """
     width: 100%;
     height: 200px;
     object-fit: cover;
-    background: #f1f5f9;
+    background: #f0ede8;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #64748b;
+    color: #94a3b8;
     font-size: 3rem;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f0ede8;
 }
 .card-image img {
     width: 100%;
@@ -97,7 +107,7 @@ CARDS_CSS = """
 .card-title {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #0f172a;
+    color: #1e293b;
     line-height: 1.4;
     margin: 0;
     display: -webkit-box;
@@ -109,17 +119,18 @@ CARDS_CSS = """
 .card-price {
     font-size: 1.6rem;
     font-weight: 800;
-    color: #059669;
+    color: #0d9488;
     margin: 2px 0;
     letter-spacing: -0.02em;
 }
 .card-price.free {
-    color: #6366f1;
+    color: #6b7280;
+    font-weight: 600;
 }
 
 .card-description {
     font-size: 0.9rem;
-    color: #334155;
+    color: #475569;
     line-height: 1.6;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -135,27 +146,27 @@ CARDS_CSS = """
     gap: 6px;
     margin-top: 6px;
     padding-top: 10px;
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid #ede9e3;
 }
 .card-detail {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 0.85rem;
-    color: #475569;
+    color: #57534e;
     line-height: 1.5;
 }
 .card-detail .label {
     font-weight: 600;
-    color: #334155;
+    color: #44403c;
     min-width: 72px;
     flex-shrink: 0;
 }
 .card-detail .value {
-    color: #1e293b;
+    color: #292524;
 }
 .card-detail a {
-    color: #2563eb;
+    color: #1e3a5f;
     text-decoration: none;
     font-weight: 500;
 }
@@ -175,16 +186,16 @@ CARDS_CSS = """
     line-height: 1.3;
 }
 .badge-site {
-    background: #ede9fe;
-    color: #5b21b6;
+    background: #e9e3d5;
+    color: #7c5e2e;
 }
 .badge-warranty {
-    background: #dcfce7;
-    color: #166534;
+    background: #dff1f0;
+    color: #0f766e;
 }
 .badge-urgent {
-    background: #fef2f2;
-    color: #dc2626;
+    background: #fde8e8;
+    color: #b91c1c;
 }
 
 /* ─── Footer de la tarjeta ─── */
@@ -193,8 +204,8 @@ CARDS_CSS = """
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
+    background: #faf9f7;
+    border-top: 1px solid #e8e4de;
     gap: 8px;
     flex-wrap: wrap;
 }
@@ -204,10 +215,10 @@ CARDS_CSS = """
     align-items: center;
     gap: 4px;
     font-size: 0.8rem;
-    color: #64748b;
+    color: #78716c;
 }
 .card-site strong {
-    color: #334155;
+    color: #44403c;
 }
 
 .card-footer-actions {
@@ -221,7 +232,7 @@ CARDS_CSS = """
     align-items: center;
     gap: 6px;
     padding: 8px 18px;
-    background: #2563eb;
+    background: #1e3a5f;
     color: white;
     text-decoration: none;
     border-radius: 8px;
@@ -230,26 +241,26 @@ CARDS_CSS = """
     transition: background 0.2s;
 }
 .card-link:hover {
-    background: #1d4ed8;
+    background: #2c5282;
 }
 
 /* Botón Contactar (estilo secundario) */
 .contact-btn {
-    background: #f1f5f9;
-    color: #334155;
-    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #1e3a5f;
+    border: 1.5px solid #d4cfc7;
 }
 .contact-btn:hover {
-    background: #e2e8f0;
-    color: #0f172a;
-    border-color: #cbd5e1;
+    background: #f5f3ef;
+    color: #1e3a5f;
+    border-color: #1e3a5f;
 }
 
 /* ─── Estados ─── */
 .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: #94a3b8;
+    color: #a8a29e;
 }
 .empty-state .icon {
     font-size: 4rem;
@@ -691,29 +702,48 @@ def build_app() -> gr.Blocks:
     footer {display:none !important}
     .gradio-container {max-width: 1100px !important; margin: 0 auto !important}
     .gr-box {border: none !important; box-shadow: none !important}
+    body {background: #f5f3ef !important}
+    .gradio-container {background: #f5f3ef !important}
+    /* Primary button → navy */
+    button.gr-button-primary {background: #1e3a5f !important; border-color: #1e3a5f !important}
+    button.gr-button-primary:hover {background: #2c5282 !important; border-color: #2c5282 !important}
+    /* Tabs accent */
+    .gr-tabs .tab-nav button.selected {border-bottom-color: #1e3a5f !important; color: #1e3a5f !important}
+    /* Inputs subtle border */
+    input, textarea, select {border-color: #d4cfc7 !important}
+    input:focus, textarea:focus {border-color: #1e3a5f !important; box-shadow: 0 0 0 2px rgba(30,58,95,0.15) !important}
+    .gr-dropdown {border-color: #d4cfc7 !important}
+    .gr-dropdown:focus {border-color: #1e3a5f !important}
     """
 
-    with gr.Blocks(
-        title="BuscadorGenérico",
-        theme=gr.themes.Soft(),
-        css=css,
-    ) as demo:
+    demo = gr.Blocks(title="NovaSearch")
+    demo.css = css
+    demo.theme = gr.themes.Soft()
+    with demo:
         # ─── Encabezado ──────────────────────────────────────
         gr.HTML(
             f"""
-            <div style="text-align:center;padding:24px 0 12px">
-                <h1 style="margin:0;font-size:2rem;font-weight:800;
-                           background:linear-gradient(135deg,#2563eb,#7c3aed);
-                           -webkit-background-clip:text;-webkit-text-fill-color:transparent">
-                    🔍 BuscadorGenérico
-                </h1>
-                <p style="color:#64748b;margin:6px 0 0;font-size:1.05rem">
-                    Encuentra lo que buscas en múltiples sitios a la vez
+            <div style="text-align:center;padding:28px 0 16px;
+                        background:linear-gradient(180deg,#1e3a5f 0%,#152d4a 100%);
+                        border-radius:20px;margin-bottom:24px;
+                        box-shadow:0 4px 20px rgba(30,58,95,0.15)">
+                <div style="display:flex;align-items:center;justify-content:center;gap:12px">
+                    <span style="font-size:2.2rem">🔍</span>
+                    <h1 style="margin:0;font-size:2rem;font-weight:800;
+                               color:#ffffff;letter-spacing:-0.02em">
+                        NovaSearch
+                    </h1>
+                </div>
+                <p style="color:#cbd5e1;margin:8px 0 0;font-size:1.05rem;font-weight:400;
+                           letter-spacing:0.01em">
+                    Busca en múltiples clasificados cubanos, en un solo lugar
                 </p>
-                <div style="margin-top:8px;display:flex;justify-content:center;gap:16px;
+                <div style="margin-top:12px;display:flex;justify-content:center;gap:24px;
                             font-size:0.85rem;color:#94a3b8">
-                    <span>🏪 {_adapter_loader.count} sitios</span>
-                    <span>📂 {len(verticals)} categorías</span>
+                    <span style="background:rgba(255,255,255,0.1);padding:4px 14px;
+                                 border-radius:20px">🏪 {_adapter_loader.count} sitios</span>
+                    <span style="background:rgba(255,255,255,0.1);padding:4px 14px;
+                                 border-radius:20px">📂 {len(verticals)} categorías</span>
                 </div>
             </div>
             """
@@ -789,62 +819,63 @@ def build_app() -> gr.Blocks:
                         wrap=True,
                     )
 
-            # ═══════════════════════════════════════════════════
-            # PESTAÑA 2: AYUDA
-            # ═══════════════════════════════════════════════════
-            with gr.Tab("❓ Ayuda"):
-                gr.HTML(
-                    """
-                    <div style="max-width:700px;margin:0 auto;padding:20px 0">
-                        <h2>📖 ¿Cómo usar este buscador?</h2>
+                    # ═══════════════════════════════════════════════════
+                    # PESTAÑA 2: AYUDA
+                    # ═══════════════════════════════════════════════════
+                    with gr.Tab("❓ Ayuda"):
+                        gr.HTML(
+                            """
+                            <div style="max-width:700px;margin:0 auto;padding:20px 0">
+                                <h2 style="color:#1e3a5f;font-weight:700">📖 ¿Cómo usar NovaSearch?</h2>
 
-                        <div style="display:flex;gap:20px;margin:24px 0;flex-wrap:wrap">
-                            <div style="flex:1;min-width:160px;padding:20px;
-                                        background:#f8fafc;border-radius:12px;text-align:center">
-                                <div style="font-size:2rem">✏️</div>
-                                <h3 style="margin:8px 0 4px;font-size:1rem">1. Escribe</h3>
-                                <p style="margin:0;font-size:0.85rem;color:#64748b">
-                                    Lo que quieres buscar. Sé específico.</p>
-                            </div>
-                            <div style="flex:1;min-width:160px;padding:20px;
-                                        background:#f8fafc;border-radius:12px;text-align:center">
-                                <div style="font-size:2rem">📂</div>
-                                <h3 style="margin:8px 0 4px;font-size:1rem">2. Categoría</h3>
-                                <p style="margin:0;font-size:0.85rem;color:#64748b">
-                                    Selecciona dónde buscar.</p>
-                            </div>
-                            <div style="flex:1;min-width:160px;padding:20px;
-                                        background:#f8fafc;border-radius:12px;text-align:center">
-                                <div style="font-size:2rem">🔍</div>
-                                <h3 style="margin:8px 0 4px;font-size:1rem">3. Buscar</h3>
-                                <p style="margin:0;font-size:0.85rem;color:#64748b">
-                                    Presiona y obtén resultados.</p>
-                            </div>
-                        </div>
+                                <div style="display:flex;gap:20px;margin:24px 0;flex-wrap:wrap">
+                                    <div style="flex:1;min-width:160px;padding:20px;
+                                                background:#f0ede8;border-radius:12px;text-align:center;
+                                                border:1px solid #e8e4de">
+                                        <div style="font-size:2rem">✏️</div>
+                                        <h3 style="margin:8px 0 4px;font-size:1rem;color:#1e3a5f">1. Escribe</h3>
+                                        <p style="margin:0;font-size:0.85rem;color:#57534e">
+                                            Lo que quieres buscar. Sé específico.</p>
+                                    </div>
+                                    <div style="flex:1;min-width:160px;padding:20px;
+                                                background:#f0ede8;border-radius:12px;text-align:center;
+                                                border:1px solid #e8e4de">
+                                        <div style="font-size:2rem">📂</div>
+                                        <h3 style="margin:8px 0 4px;font-size:1rem;color:#1e3a5f">2. Categoría</h3>
+                                        <p style="margin:0;font-size:0.85rem;color:#57534e">
+                                            Selecciona dónde buscar.</p>
+                                    </div>
+                                    <div style="flex:1;min-width:160px;padding:20px;
+                                                background:#f0ede8;border-radius:12px;text-align:center;
+                                                border:1px solid #e8e4de">
+                                        <div style="font-size:2rem">🔍</div>
+                                        <h3 style="margin:8px 0 4px;font-size:1rem;color:#1e3a5f">3. Buscar</h3>
+                                        <p style="margin:0;font-size:0.85rem;color:#57534e">
+                                            Presiona y obtén resultados.</p>
+                                    </div>
+                                </div>
 
-                        <h3>❓ Preguntas frecuentes</h3>
+                                <h3 style="color:#1e3a5f;font-weight:600">❓ Preguntas frecuentes</h3>
 
-                        <div style="background:#f8fafc;border-radius:12px;padding:16px 20px;margin:12px 0">
-                            <p><strong>🔹 ¿Qué sitios busca?</strong><br>
-                            Todos los sitios disponibles en la categoría que elijas.</p>
-                        </div>
-                        <div style="background:#f8fafc;border-radius:12px;padding:16px 20px;margin:12px 0">
-                            <p><strong>🔹 ¿Por qué no aparecen resultados?</strong><br>
-                            El sitio puede no estar accesible en este momento, o no hay
-                            resultados para tu búsqueda. Intenta con otros términos.</p>
-                        </div>
-                        <div style="background:#f8fafc;border-radius:12px;padding:16px 20px;margin:12px 0">
-                            <p><strong>🔹 ¿Los precios son actualizados?</strong><br>
-                            Los resultados se obtienen en tiempo real desde los sitios
-                            de clasificados.</p>
-                        </div>
-                        <div style="background:#f8fafc;border-radius:12px;padding:16px 20px;margin:12px 0">
-                            <p><strong>🔹 ¿Cómo agrego más sitios?</strong><br>
-                            Contacta al administrador del sistema.</p>
-                        </div>
-                    </div>
-                    """
-                )
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Qué sitios busca?</strong><br>
+                                    <span style="color:#57534e">Todos los sitios disponibles en la categoría que elijas.</span></p>
+                                </div>
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Por qué no aparecen resultados?</strong><br>
+                                    <span style="color:#57534e">El sitio puede no estar accesible en este momento, o no hay resultados para tu búsqueda. Intenta con otros términos.</span></p>
+                                </div>
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Los precios son actualizados?</strong><br>
+                                    <span style="color:#57534e">Los resultados se obtienen en tiempo real desde los sitios de clasificados.</span></p>
+                                </div>
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Cómo agrego más sitios?</strong><br>
+                                    <span style="color:#57534e">Contacta al administrador del sistema.</span></p>
+                                </div>
+                            </div>
+                            """
+                        )
 
     return demo
 
