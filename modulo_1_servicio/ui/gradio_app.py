@@ -45,8 +45,8 @@ CARDS_CSS = """
 /* ─── Grid de tarjetas ─── */
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 24px;
     padding: 8px 0;
 }
 
@@ -54,16 +54,16 @@ CARDS_CSS = """
 .result-card {
     background: #ffffff;
     border-radius: 16px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
     overflow: hidden;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid #eef2f6;
+    border: 1px solid #e2e8f0;
     display: flex;
     flex-direction: column;
 }
 .result-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.05);
 }
 
 /* ─── Imagen ─── */
@@ -75,8 +75,9 @@ CARDS_CSS = """
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #94a3b8;
+    color: #64748b;
     font-size: 3rem;
+    border-bottom: 1px solid #f1f5f9;
 }
 .card-image img {
     width: 100%;
@@ -86,7 +87,7 @@ CARDS_CSS = """
 
 /* ─── Contenido ─── */
 .card-body {
-    padding: 18px 20px 20px;
+    padding: 20px 20px 16px;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -97,7 +98,7 @@ CARDS_CSS = """
     font-size: 1.1rem;
     font-weight: 700;
     color: #0f172a;
-    line-height: 1.3;
+    line-height: 1.4;
     margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -106,10 +107,11 @@ CARDS_CSS = """
 }
 
 .card-price {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 800;
     color: #059669;
     margin: 2px 0;
+    letter-spacing: -0.02em;
 }
 .card-price.free {
     color: #6366f1;
@@ -117,8 +119,8 @@ CARDS_CSS = """
 
 .card-description {
     font-size: 0.9rem;
-    color: #475569;
-    line-height: 1.5;
+    color: #334155;
+    line-height: 1.6;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
@@ -131,22 +133,34 @@ CARDS_CSS = """
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 4px;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
 }
 .card-detail {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 0.85rem;
-    color: #64748b;
+    color: #475569;
+    line-height: 1.5;
 }
 .card-detail .label {
     font-weight: 600;
-    color: #475569;
-    min-width: 70px;
+    color: #334155;
+    min-width: 72px;
+    flex-shrink: 0;
 }
 .card-detail .value {
-    color: #334155;
+    color: #1e293b;
+}
+.card-detail a {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+}
+.card-detail a:hover {
+    text-decoration: underline;
 }
 
 /* Badges */
@@ -158,17 +172,18 @@ CARDS_CSS = """
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 600;
+    line-height: 1.3;
 }
 .badge-site {
     background: #ede9fe;
-    color: #6d28d9;
+    color: #5b21b6;
 }
 .badge-warranty {
     background: #dcfce7;
-    color: #15803d;
+    color: #166534;
 }
 .badge-urgent {
-    background: #fee2e2;
+    background: #fef2f2;
     color: #dc2626;
 }
 
@@ -177,9 +192,9 @@ CARDS_CSS = """
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
+    padding: 12px 16px;
     background: #f8fafc;
-    border-top: 1px solid #eef2f6;
+    border-top: 1px solid #e2e8f0;
     gap: 8px;
     flex-wrap: wrap;
 }
@@ -189,10 +204,16 @@ CARDS_CSS = """
     align-items: center;
     gap: 4px;
     font-size: 0.8rem;
-    color: #94a3b8;
+    color: #64748b;
 }
 .card-site strong {
-    color: #475569;
+    color: #334155;
+}
+
+.card-footer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .card-link {
@@ -210,6 +231,18 @@ CARDS_CSS = """
 }
 .card-link:hover {
     background: #1d4ed8;
+}
+
+/* Botón Contactar (estilo secundario) */
+.contact-btn {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+}
+.contact-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: #cbd5e1;
 }
 
 /* ─── Estados ─── */
@@ -472,7 +505,7 @@ def _render_single_card(item: dict) -> str:
     if item.get("description"):
         desc_html = f'<p class="card-description">{item["description"]}</p>'
 
-    # ── Enlace ──
+    # ── Enlace "Ver oferta" ──
     link_html = ""
     if item.get("url"):
         link_html = (
@@ -483,6 +516,28 @@ def _render_single_card(item: dict) -> str:
         link_html = (
             f'<span class="card-link" style="background:#94a3b8;cursor:default">'
             f'🔗 No disponible</span>'
+        )
+
+    # ── Botón "Contactar" ──
+    contact_html = ""
+    phone = item.get("phone", "").strip()
+    email = item.get("email", "").strip()
+    if phone:
+        # Limpiar el teléfono para el enlace tel:
+        clean_phone = phone.replace(" ", "").replace("-", "")
+        contact_html = (
+            f'<a class="card-link contact-btn" href="tel:{clean_phone}" '
+            f'title="Llamar al {phone}">📞 Contactar</a>'
+        )
+    elif email:
+        contact_html = (
+            f'<a class="card-link contact-btn" href="mailto:{email}" '
+            f'title="Enviar email a {email}">✉️ Contactar</a>'
+        )
+    else:
+        contact_html = (
+            f'<span class="card-link contact-btn" style="background:#cbd5e1;cursor:default;opacity:0.6">'
+            f'📞 Contactar</span>'
         )
 
     # ── Sitio ──
@@ -503,7 +558,10 @@ def _render_single_card(item: dict) -> str:
         <span class="card-site">
             {site_icons.get(site, "🌐")} <strong>{site}</strong>
         </span>
-        {link_html}
+        <div class="card-footer-actions">
+            {contact_html}
+            {link_html}
+        </div>
     </div>
 </div>"""
 
