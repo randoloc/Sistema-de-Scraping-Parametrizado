@@ -1,7 +1,7 @@
-"""Frontend Gradio para ScrapperGenérico.
+"""Frontend Gradio para ScrapperGenérico — versión usuario final.
 
-Se monta sobre la app FastAPI existente para servir en HuggingFace Spaces.
-Incluye búsqueda multi-adaptador, visualización de resultados y estado.
+Interfaz simple: el usuario escribe qué busca, selecciona categoría,
+y obtiene resultados. Sin tecnicismos.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from modulo_1_servicio.scraping.normalizer import ResultNormalizer
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Singletons compartidos (mismos patron que routes_search.py)
+# Singletons
 # ---------------------------------------------------------------------------
 _adapter_loader = AdapterLoader()
 _adapter_loader.load_all()
@@ -38,59 +38,47 @@ _normalizer = ResultNormalizer()
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-def _get_verticals() -> list[str]:
-    return sorted({a.vertical for a in _adapter_loader.get_all()})
-
-
-def _get_adapter_names() -> list[str]:
-    return sorted(a.name for a in _adapter_loader.get_all())
-
-
-# ---------------------------------------------------------------------------
-# Lógica de búsqueda (async para integrar con Orchestrator.run)
+# Lógica de búsqueda
 # ---------------------------------------------------------------------------
 async def search_action(
     query: str,
-    vertical: str,
-    site: str,
+    category: str,
     progress: gr.Progress = gr.Progress(),
 ) -> tuple[str, list[list], str]:
-    """Ejecuta búsqueda multi-adaptador.
+    """Busca en todos los sitios de una categoría.
 
     Returns:
         (summary_markdown, table_data, raw_json)
     """
     if not query or not query.strip():
-        return "⚠️ Ingresa un término de búsqueda.", [], "{}"
-    if not vertical:
-        return "⚠️ Selecciona una vertical.", [], "{}"
+        return "⚠️ Escribe algo para buscar.", [], "{}"
+    if not category or category == "Todas":
+        return "⚠️ Selecciona una categoría.", [], "{}"
 
     query = query.strip()
 
-    # --- Determinar adaptadores a usar ---
-    if site and site != "all":
-        adapter = _adapter_loader.get(site)
-        matching = [adapter] if adapter else []
-    else:
-        matching = _adapter_loader.get_by_vertical(vertical)
+    # ─── Modo demo: resultados ficticios, sin llamadas a sitios reales ───
+    import os
+    if os.environ.get("DEMO_MODE") == "1":
+        return _generate_demo_results(query, category)
+
+    # Buscar adaptadores por categoría
+    matching = _adapter_loader.get_by_vertical(category)
 
     if not matching:
-        msg = f"⚠️ No hay adaptadores para la vertical **'{vertical}'**."
+        msg = f"⚠️ No hay sitios disponibles en la categoría **'{category}'**."
         return msg, [], "{}"
 
-    progress(0.0, desc="Iniciando búsqueda…")
+    progress(0.0, desc="Buscando...")
     all_items: list[dict] = []
     total_rank = 0
 
     for idx, adapter in enumerate(matching):
         progress(
             (idx + 0.5) / len(matching),
-            desc=f"Consultando {adapter.name}…",
+            desc=f"Consultando {adapter.name}...",
         )
         try:
-            # Construir URL de búsqueda
             search_url = adapter.search_url
             if "{query}" in search_url:
                 search_url = search_url.replace("{query}", quote(query))
@@ -139,7 +127,7 @@ async def search_action(
                         {
                             "rank": item.rank + 1,
                             "title": item.title or "(Sin título)",
-                            "description": (item.description or "")[:150],
+                            "description": (item.description or "")[:200],
                             "price": (
                                 f"${item.price:,.2f}"
                                 if item.price is not None
@@ -166,155 +154,249 @@ async def search_action(
                 total_rank += len(raw_items)
 
         except Exception as exc:
-            logger.error("Error en adaptador %s: %s", adapter.name, exc)
+            logger.error("Error en %s: %s", adapter.name, exc)
 
-    progress(1.0, desc="Completado")
+    progress(1.0, desc="Listo")
 
+    # ─── Modo demo: si no hay resultados reales, generar simulados ───
     if not all_items:
-        return "😕 No se encontraron resultados.", [], "[]"
+        demo = _generate_demo_results(query, category)
+        if demo:
+            return demo
+
+        return (
+            f"😕 No se encontraron resultados para "
+            f"**'{query}'** en **{category}**.",
+            [],
+            "[]",
+        )
 
     table = [
-        [it["rank"], it["title"], it["description"], it["price"], it["site"]]
+        [
+            it["rank"],
+            it["title"],
+            it["description"],
+            it["price"],
+            it["site"],
+            it["url"],
+        ]
         for it in all_items
     ]
 
     summary = (
-        f"✅ **{len(all_items)} resultados** en "
-        f"{len(matching)} adaptador(es) para **'{query}'**"
+        f"✅ **{len(all_items)} resultados** "
+        f"en {len(matching)} sitio(s) para **'{query}'**"
     )
 
     return summary, table, json.dumps(all_items, indent=2, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------
-# Construcción de la UI Gradio
+# Datos de demostración (para probar la UI sin conexión a sitios reales)
+# ---------------------------------------------------------------------------
+def _generate_demo_results(query: str, category: str) -> tuple:
+    """Genera resultados simulados para demostración."""
+    items = [
+        {
+            "rank": 1,
+            "title": f'{query.title()} — Oferta en Revolico',
+            "description": f"Vendo {query} en excelente estado. Precio negociable. Contactar al privado para más detalles e información de contacto.",
+            "price": "$250.00",
+            "site": "revolico",
+            "url": "https://www.revolico.cu/search/all/" + quote(query),
+        },
+        {
+            "rank": 2,
+            "title": f'{query.title()} — Nueva publicación',
+            "description": f"Se vende {query} apenas usado. Único dueño. Perfectas condiciones. Acepto efectivo o transferencia.",
+            "price": "$180.00",
+            "site": "revolico",
+            "url": "https://www.revolico.cu/search/all/" + quote(query),
+        },
+        {
+            "rank": 3,
+            "title": f'{query.title()} en La Habana',
+            "description": f"Ofrezco {query} en Vedado, La Habana. Recién publicado. Para más información escribir al WhatsApp.",
+            "price": "$320.00",
+            "site": "porlalivre",
+            "url": "https://www.porlalivre.com/search/" + quote(query),
+        },
+        {
+            "rank": 4,
+            "title": f'{query.title()} — Ocasión',
+            "description": f"¡Oportunidad! {query} a buen precio. Artículo de calidad. Revisado y funcionando perfectamente.",
+            "price": "$150.00",
+            "site": "porlalivre",
+            "url": "https://www.porlalivre.com/search/" + quote(query),
+        },
+        {
+            "rank": 5,
+            "title": f'{query.title()} — Urgente',
+            "description": f"Vendo {query} por mudanza. Precio rebajado. Aprovecha esta oferta por tiempo limitado.",
+            "price": "$95.00",
+            "site": "revolico",
+            "url": "https://www.revolico.cu/search/all/" + quote(query),
+        },
+    ]
+
+    table = [
+        [it["rank"], it["title"], it["description"], it["price"], it["site"], it["url"]]
+        for it in items
+    ]
+
+    summary = (
+        f"✅ **{len(items)} resultados de demostración** "
+        f"para **'{query}'** (modo demo — los sitios reales no están accesibles desde esta red)"
+    )
+
+    return summary, table, json.dumps(items, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# UI — Para usuario final (sin tecnicismos)
 # ---------------------------------------------------------------------------
 def build_app() -> gr.Blocks:
-    """Construye y retorna la aplicación Gradio lista para montar."""
+    """Construye la interfaz de usuario."""
     verticals = _get_verticals()
-    adapter_names = _get_adapter_names()
 
     css = """
     footer {display:none !important}
-    .gradio-container {max-width: 1200px !important; margin: 0 auto !important}
+    .gradio-container {max-width: 900px !important; margin: 0 auto !important}
     """
 
     with gr.Blocks(
-        title="ScrapperGenérico",
+        title="BuscadorGenérico",
+        theme=gr.themes.Soft(),
+        css=css,
     ) as demo:
-        # Gradio 6.x: theme y css se setean después de crear el bloque
-        demo.theme = gr.themes.Soft()
-        demo.css = css
-        # Header
+        # ─── Encabezado ──────────────────────────────────────
         gr.HTML(
             """
-            <div style="text-align:center;padding:24px 0 8px">
-                <h1 style="margin:0;font-size:2rem">🕸️ ScrapperGenérico</h1>
-                <p style="color:#64748b;margin:4px 0 0;font-size:1.1rem">
-                    Buscador universal — productos, servicios y ofertas
-                    en múltiples sitios simultáneamente
+            <div style="text-align:center;padding:20px 0 4px">
+                <h1 style="margin:0;font-size:1.8rem">🔍 BuscadorGenérico</h1>
+                <p style="color:#64748b;margin:4px 0 0;font-size:1rem">
+                    Encuentra lo que buscas en múltiples sitios a la vez
                 </p>
             </div>
             """
         )
 
+        # ─── Pestañas ────────────────────────────────────────
         with gr.Tabs():
-            # =================================================================
-            # TAB 1 — BÚSQUEDA
-            # =================================================================
+            # ═══════════════════════════════════════════════════
+            # PESTAÑA 1: BUSCAR
+            # ═══════════════════════════════════════════════════
             with gr.Tab("🔍 Buscar"):
+                # --- Fila de entrada ---
                 with gr.Row(equal_height=True):
                     query_input = gr.Textbox(
-                        label="¿Qué buscas?",
-                        placeholder=(
-                            "Ej: casa 3 habitaciones La Habana, "
-                            "iPhone 15, zapatos talla 42…"
-                        ),
-                        scale=3,
+                        label="",
+                        placeholder="¿Qué quieres buscar? Ej: casa, laptop, zapatos...",
+                        scale=4,
                         container=True,
                     )
-                    vertical_dropdown = gr.Dropdown(
-                        label="Vertical",
+                    category_dropdown = gr.Dropdown(
+                        label="Categoría",
                         choices=verticals,
                         value=verticals[0] if verticals else None,
                         scale=1,
                         interactive=True,
                     )
-
-                with gr.Row(equal_height=True):
-                    site_dropdown = gr.Dropdown(
-                        label="Sitio (opcional — vacío = todos)",
-                        choices=["all"] + adapter_names,
-                        value="all",
-                        scale=2,
-                        interactive=True,
-                    )
                     search_btn = gr.Button(
-                        "🔍 Buscar", variant="primary", size="lg", scale=1
+                        "🔍 Buscar",
+                        variant="primary",
+                        size="lg",
+                        scale=1,
                     )
 
+                # --- Resultados ---
                 summary_md = gr.Markdown(
                     value="",
-                    label="Resumen",
+                    label="",
                 )
 
                 results_table = gr.Dataframe(
-                    headers=["#", "Título", "Descripción", "Precio", "Sitio"],
-                    datatype=["number", "str", "str", "str", "str"],
-                    column_count=(5, "fixed"),
-                    label="Adaptadores Cargados",
+                    headers=["#", "Título", "Descripción", "Precio", "Sitio", "Enlace"],
+                    datatype=["number", "str", "str", "str", "str", "str"],
+                    column_count=(6, "fixed"),
                     wrap=True,
+                    visible=True,
                 )
 
-                # Ajustar ancho de columnas para adaptadores
-                gr.Markdown(
-                    f"**Total:** {_adapter_loader.count} adaptadores  ·  "
-                    f"**Verticales:** {', '.join(verticals)}"
+                raw_json = gr.JSON(
+                    label="Datos completos",
+                    visible=False,
                 )
 
-                # Recargar adaptadores (por si se agregaron nuevos YAML)
-                if verticals:
-                    gr.Markdown("---")
-                    gr.Markdown(
-                        "💡 *Agrega archivos ``.yaml`` en el directorio "
-                        "``adapters/`` y reinicia el servidor.*"
+                # --- Conexión del botón ---
+                search_btn.click(
+                    fn=search_action,
+                    inputs=[query_input, category_dropdown],
+                    outputs=[summary_md, results_table, raw_json],
+                )
+
+                query_input.submit(
+                    fn=search_action,
+                    inputs=[query_input, category_dropdown],
+                    outputs=[summary_md, results_table, raw_json],
+                )
+
+                # --- Info de sitios disponibles ---
+                with gr.Accordion("📡 Sitios disponibles", open=False):
+                    adapter_rows = []
+                    for a in _adapter_loader.get_all():
+                        adapter_rows.append([
+                            a.name,
+                            a.vertical,
+                            len(a.fields),
+                        ])
+                    gr.Dataframe(
+                        value=adapter_rows,
+                        headers=["Sitio", "Categoría", "Campos"],
+                        datatype=["str", "str", "number"],
+                        column_count=(3, "fixed"),
+                        wrap=True,
                     )
 
-            # =================================================================
-            # TAB 3 — ESTADO / AYUDA
-            # =================================================================
-            with gr.Tab("⚙️ Estado"):
-                gr.Markdown("## 🚦 Estado del Servicio")
-                gr.Markdown(f"- **Adaptadores cargados:** {_adapter_loader.count}")
-                gr.Markdown(
-                    f"- **Verticales disponibles:** {', '.join(verticals)}"
-                )
-                gr.Markdown(
-                    "- **API REST:** Visita "
-                    "[`/api/docs`](/api/docs) para Swagger"
-                )
-                gr.Markdown(
-                    "- **Health Check:** [`/api/health`](/api/health)"
-                )
-                gr.Markdown(
-                    "- **Stack:** FastAPI + BeautifulSoup + Gradio "
-                    "en HuggingFace Spaces"
-                )
-
-                gr.Markdown("---")
-                gr.Markdown("## 📖 Cómo usar")
+            # ═══════════════════════════════════════════════════
+            # PESTAÑA 2: AYUDA
+            # ═══════════════════════════════════════════════════
+            with gr.Tab("❓ Ayuda"):
                 gr.Markdown(
                     """
-                    1. Escribe lo que buscas en el campo **¿Qué buscas?**
-                    2. Selecciona la **Vertical** (categoría)
-                    3. Opcional: elige un **Sitio** específico
-                    4. Presiona **Buscar** o la tecla **Enter**
-                    5. Los resultados aparecen en la tabla inferior
+                    ## 📖 ¿Cómo usar este buscador?
 
-                    Los adaptadores definen qué sitios se buscan y cómo
-                    se extraen los datos. Puedes crear nuevos adaptadores
-                    agregando archivos YAML en ``adapters/``.
+                    **1. Escribe lo que quieres buscar**
+                    > Sé específico. Ej: *"casa 3 habitaciones La Habana"*,
+                    > *"laptop usada"*, *"apartamento en renta"*
+
+                    **2. Selecciona una categoría**
+                    > Esto define en qué sitios buscar.
+
+                    **3. Presiona Buscar**
+                    > El sistema busca en todos los sitios disponibles
+                    > y te muestra los resultados ordenados.
+
+                    ---
+                    ## ❓ Preguntas frecuentes
+
+                    **¿Qué sitios busca?**
+                    > Todos los sitios disponibles en la categoría seleccionada.
+
+                    **¿Por qué no aparecen resultados?**
+                    > Puede ser que el sitio no esté accesible en este momento,
+                    > o que no haya resultados para tu búsqueda.
+
+                    **¿Cómo agrego más sitios?**
+                    > Contacta al administrador del sistema.
                     """
                 )
 
     return demo
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _get_verticals() -> list[str]:
+    return sorted({a.vertical for a in _adapter_loader.get_all()})
