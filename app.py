@@ -1,26 +1,22 @@
 """Entry point para HuggingFace Spaces — NovaSearch.
 
-Monta el frontend Gradio sobre la API FastAPI existente.
-HF Spaces busca este archivo automáticamente en la raíz.
+HF Spaces ejecuta este archivo con sdk:gradio.
+El servidor se inicia explícitamente con demo.launch().
 
-Gradio maneja la ruta raíz (/) como home page.
-La API REST sigue disponible en /api/*.
+La API REST (/api/*) NO está disponible en HF Spaces por simplicidad.
+Para API completa, correr localmente con: uvicorn modulo_1_servicio.main:app
 """
 
 from __future__ import annotations
 
-import gradio as gr
+import os
 
-from modulo_1_servicio.main import app as fastapi_app
-from modulo_1_servicio.ui.gradio_app import build_app
+# Modo demostración por defecto en HF Spaces (sin acceso a sitios reales)
+os.environ.setdefault("DEMO_MODE", "1")
 
-# Eliminar la ruta raíz de FastAPI para que Gradio pueda manejarla
-fastapi_app.router.routes = [
-    r
-    for r in fastapi_app.router.routes
-    if not (getattr(r, "path", None) == "/" and getattr(r, "methods", None) == {"GET"})
-]
+from modulo_1_servicio.ui.gradio_app import build_app  # noqa: E402
 
-# Construir y montar Gradio sobre FastAPI
-gradio_ui = build_app()
-app = gr.mount_gradio_app(fastapi_app, gradio_ui, path="/")
+# Construir y lanzar la interfaz NovaSearch
+demo = build_app()
+demo.queue()
+demo.launch(server_name="0.0.0.0", server_port=7860)

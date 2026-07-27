@@ -1,8 +1,8 @@
 ---
 title: NovaSearch
 emoji: 🔍
-colorFrom: #1e3a5f
-colorTo: #2c5282
+colorFrom: indigo
+colorTo: blue
 sdk: gradio
 sdk_version: 6.20.0
 app_file: app.py
