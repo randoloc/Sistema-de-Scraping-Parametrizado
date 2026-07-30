@@ -1,13 +1,14 @@
-"""Frontend Gradio para ScrapperGenérico.
+"""Frontend Gradio para NovaSearch — buscador multi-site de clasificados cubanos.
 
-Se monta sobre la app FastAPI existente para servir en HuggingFace Spaces.
-Incluye búsqueda multi-adaptador, visualización de resultados y estado.
+Interfaz elegante: escribe qué buscas, selecciona categoría,
+y obtén resultados en tarjetas visuales con precio, fotos, contacto y más.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 from urllib.parse import quote
 
 import gradio as gr
@@ -28,7 +29,7 @@ from modulo_1_servicio.scraping.normalizer import ResultNormalizer
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Singletons compartidos (mismos patron que routes_search.py)
+# Singletons
 # ---------------------------------------------------------------------------
 _adapter_loader = AdapterLoader()
 _adapter_loader.load_all()
@@ -36,61 +37,289 @@ _orchestrator = Orchestrator()
 _orchestrator.register_engine("web_page", BeautifulSoupExtractor())
 _normalizer = ResultNormalizer()
 
+# ---------------------------------------------------------------------------
+# CSS moderno para las tarjetas
+# ---------------------------------------------------------------------------
+CARDS_CSS = """
+<style>
+/* ─── Paleta NovaSearch ───
+ *  Fondo:     #f5f3ef (cáscara de huevo)
+ *  Primary:   #1e3a5f (navy)
+ *  Accent:    #b45309 (ámbar)
+ *  Teal:      #0d9488 (teal para precios)
+ *  Cards:     #ffffff
+ *  Text:      #1e293b
+ *  Muted:     #64748b
+ * ────────────────────────────────── */
+
+/* ─── Grid de tarjetas ─── */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 24px;
+    padding: 8px 0;
+}
+
+/* ─── Tarjeta individual ─── */
+.result-card {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(30,58,95,0.06), 0 1px 2px rgba(30,58,95,0.04);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #e8e4de;
+    display: flex;
+    flex-direction: column;
+}
+.result-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 35px rgba(30,58,95,0.1), 0 4px 8px rgba(30,58,95,0.05);
+}
+
+/* ─── Imagen ─── */
+.card-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    background: #f0ede8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 3rem;
+    border-bottom: 1px solid #f0ede8;
+}
+.card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ─── Contenido ─── */
+.card-body {
+    padding: 20px 20px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.4;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.card-price {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #0d9488;
+    margin: 2px 0;
+    letter-spacing: -0.02em;
+}
+.card-price.free {
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.card-description {
+    font-size: 0.9rem;
+    color: #475569;
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+}
+
+/* ─── Detalles ─── */
+.card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid #ede9e3;
+}
+.card-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #57534e;
+    line-height: 1.5;
+}
+.card-detail .label {
+    font-weight: 600;
+    color: #44403c;
+    min-width: 72px;
+    flex-shrink: 0;
+}
+.card-detail .value {
+    color: #292524;
+}
+.card-detail a {
+    color: #1e3a5f;
+    text-decoration: none;
+    font-weight: 500;
+}
+.card-detail a:hover {
+    text-decoration: underline;
+}
+
+/* Badges */
+.card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.badge-site {
+    background: #e9e3d5;
+    color: #7c5e2e;
+}
+.badge-warranty {
+    background: #dff1f0;
+    color: #0f766e;
+}
+.badge-urgent {
+    background: #fde8e8;
+    color: #b91c1c;
+}
+
+/* ─── Footer de la tarjeta ─── */
+.card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #faf9f7;
+    border-top: 1px solid #e8e4de;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.card-site {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: #78716c;
+}
+.card-site strong {
+    color: #44403c;
+}
+
+.card-footer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    background: #1e3a5f;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+.card-link:hover {
+    background: #2c5282;
+}
+
+/* Botón Contactar (estilo secundario) */
+.contact-btn {
+    background: #ffffff;
+    color: #1e3a5f;
+    border: 1.5px solid #d4cfc7;
+}
+.contact-btn:hover {
+    background: #f5f3ef;
+    color: #1e3a5f;
+    border-color: #1e3a5f;
+}
+
+/* ─── Estados ─── */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #a8a29e;
+}
+.empty-state .icon {
+    font-size: 4rem;
+    margin-bottom: 16px;
+}
+.empty-state h3 {
+    font-size: 1.3rem;
+    color: #64748b;
+    margin: 0 0 8px;
+}
+.empty-state p {
+    font-size: 0.95rem;
+    margin: 0;
+}
+</style>
+"""
+
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-def _get_verticals() -> list[str]:
-    return sorted({a.vertical for a in _adapter_loader.get_all()})
-
-
-def _get_adapter_names() -> list[str]:
-    return sorted(a.name for a in _adapter_loader.get_all())
-
-
-# ---------------------------------------------------------------------------
-# Lógica de búsqueda (async para integrar con Orchestrator.run)
+# Lógica de búsqueda
 # ---------------------------------------------------------------------------
 async def search_action(
     query: str,
-    vertical: str,
-    site: str,
+    category: str,
     progress: gr.Progress = gr.Progress(),
-) -> tuple[str, list[list], str]:
-    """Ejecuta búsqueda multi-adaptador.
+) -> tuple[str, str, str]:
+    """Busca en todos los sitios de una categoría.
 
     Returns:
-        (summary_markdown, table_data, raw_json)
+        (summary_markdown, cards_html, raw_json)
     """
     if not query or not query.strip():
-        return "⚠️ Ingresa un término de búsqueda.", [], "{}"
-    if not vertical:
-        return "⚠️ Selecciona una vertical.", [], "{}"
+        return "⚠️ Escribe algo para buscar.", "", "{}"
+    if not category or category == "Todas":
+        return "⚠️ Selecciona una categoría.", "", "{}"
 
     query = query.strip()
 
-    # --- Determinar adaptadores a usar ---
-    if site and site != "all":
-        adapter = _adapter_loader.get(site)
-        matching = [adapter] if adapter else []
-    else:
-        matching = _adapter_loader.get_by_vertical(vertical)
+    # ─── Modo demo ───
+    if os.environ.get("DEMO_MODE") == "1":
+        return _generate_demo_results(query, category)
+
+    # Buscar adaptadores por categoría
+    matching = _adapter_loader.get_by_vertical(category)
 
     if not matching:
-        msg = f"⚠️ No hay adaptadores para la vertical **'{vertical}'**."
-        return msg, [], "{}"
+        msg = f"⚠️ No hay sitios disponibles en la categoría **'{category}'**."
+        return msg, "", "{}"
 
-    progress(0.0, desc="Iniciando búsqueda…")
+    progress(0.0, desc="Buscando...")
     all_items: list[dict] = []
     total_rank = 0
 
     for idx, adapter in enumerate(matching):
         progress(
             (idx + 0.5) / len(matching),
-            desc=f"Consultando {adapter.name}…",
+            desc=f"Consultando {adapter.name}...",
         )
         try:
-            # Construir URL de búsqueda
             search_url = adapter.search_url
             if "{query}" in search_url:
                 search_url = search_url.replace("{query}", quote(query))
@@ -136,185 +365,523 @@ async def search_action(
                 )
                 for item in canonical:
                     all_items.append(
-                        {
-                            "rank": item.rank + 1,
-                            "title": item.title or "(Sin título)",
-                            "description": (item.description or "")[:150],
-                            "price": (
-                                f"${item.price:,.2f}"
-                                if item.price is not None
-                                else ""
-                            ),
-                            "site": item.source_site,
-                            "url": item.url or "",
-                        }
+                        _build_item(
+                            rank=item.rank + 1,
+                            title=item.title or "(Sin título)",
+                            description=(item.description or "")[:300],
+                            price=item.price,
+                            site=item.source_site,
+                            url=item.url or "",
+                        )
                     )
                 total_rank += len(canonical)
             else:
                 first_field = adapter.fields[0].name if adapter.fields else ""
                 for j, raw in enumerate(raw_items):
                     all_items.append(
-                        {
-                            "rank": total_rank + j + 1,
-                            "title": raw.get(first_field, "(Sin título)"),
-                            "description": "",
-                            "price": "",
-                            "site": adapter.name,
-                            "url": "",
-                        }
+                        _build_item(
+                            rank=total_rank + j + 1,
+                            title=raw.get(first_field, "(Sin título)"),
+                            description="",
+                            price=None,
+                            site=adapter.name,
+                            url="",
+                        )
                     )
                 total_rank += len(raw_items)
 
         except Exception as exc:
-            logger.error("Error en adaptador %s: %s", adapter.name, exc)
+            logger.error("Error en %s: %s", adapter.name, exc)
 
-    progress(1.0, desc="Completado")
+    progress(1.0, desc="Listo")
 
+    # ─── Fallback a demo ───
     if not all_items:
-        return "😕 No se encontraron resultados.", [], "[]"
-
-    table = [
-        [it["rank"], it["title"], it["description"], it["price"], it["site"]]
-        for it in all_items
-    ]
+        demo = _generate_demo_results(query, category)
+        if demo:
+            return demo
+        return (
+            f"😕 No se encontraron resultados para **'{query}'** en **{category}**.",
+            _empty_state_html("Sin resultados", "Intenta con otros términos o categoría."),
+            "[]",
+        )
 
     summary = (
-        f"✅ **{len(all_items)} resultados** en "
-        f"{len(matching)} adaptador(es) para **'{query}'**"
+        f"✅ **{len(all_items)} resultados** "
+        f"en {len(matching)} sitio(s) para **'{query}'**"
     )
 
-    return summary, table, json.dumps(all_items, indent=2, ensure_ascii=False)
+    cards = _render_cards(all_items)
+    return summary, cards, json.dumps(all_items, indent=2, ensure_ascii=False)
+
+
+def _build_item(
+    rank: int,
+    title: str,
+    description: str,
+    price: float | None,
+    site: str,
+    url: str,
+    **kwargs,
+) -> dict:
+    """Construye un item con campos enriquecidos."""
+    return {
+        "rank": rank,
+        "title": title,
+        "description": description,
+        "price": f"${price:,.2f}" if price is not None else "",
+        "price_raw": price,
+        "site": site,
+        "url": url,
+        # Campos enriquecidos (desde adaptadores o demo)
+        "image": kwargs.get("image", ""),
+        "contact": kwargs.get("contact", ""),
+        "address": kwargs.get("address", ""),
+        "warranty": kwargs.get("warranty", ""),
+        "phone": kwargs.get("phone", ""),
+        "email": kwargs.get("email", ""),
+        "condition": kwargs.get("condition", ""),  # nuevo/usado
+        "badges": kwargs.get("badges", []),
+    }
 
 
 # ---------------------------------------------------------------------------
-# Construcción de la UI Gradio
+# Renderizador de tarjetas HTML
+# ---------------------------------------------------------------------------
+def _render_cards(items: list[dict]) -> str:
+    """Convierte una lista de items en HTML de tarjetas."""
+    if not items:
+        return _empty_state_html("Sin resultados", "No hay resultados para mostrar.")
+
+    cards_html = "\n".join(_render_single_card(it) for it in items)
+
+    return f"""{CARDS_CSS}
+<div class="cards-grid">
+{cards_html}
+</div>"""
+
+
+def _render_single_card(item: dict) -> str:
+    """Renderiza una tarjeta HTML para un item."""
+    # ── Imagen ──
+    img_html = ""
+    if item.get("image"):
+        img_html = f'<img src="{item["image"]}" alt="{item["title"]}" />'
+    else:
+        img_html = '<div class="card-image">📷</div>'
+
+    # ── Precio ──
+    price_html = ""
+    if item.get("price"):
+        price_html = f'<div class="card-price">{item["price"]}</div>'
+    else:
+        price_html = '<div class="card-price free">💰 Consultar</div>'
+
+    # ── Badges ──
+    badges_html = ""
+    badges = item.get("badges", [])
+    if badges:
+        badge_items = "".join(
+            f'<span class="card-badge badge-{b.get("type","site")}">{b.get("icon","")} {b.get("label","")}</span>'
+            for b in badges
+        )
+        badges_html = f'<div style="display:flex;gap:6px;flex-wrap:wrap">{badge_items}</div>'
+
+    # ── Detalles dinámicos ──
+    details = []
+    detail_fields = [
+        ("📍 Ubicación", "address"),
+        ("📞 Contacto", "contact"),
+        ("📱 Teléfono", "phone"),
+        ("✉️ Email", "email"),
+        ("🏷️ Estado", "condition"),
+        ("🛡️ Garantía", "warranty"),
+    ]
+    for label, field in detail_fields:
+        val = item.get(field, "").strip()
+        if val:
+            details.append(
+                f'<div class="card-detail">'
+                f'<span class="label">{label}:</span>'
+                f'<span class="value">{val}</span>'
+                f'</div>'
+            )
+
+    details_html = ""
+    if details:
+        details_html = f'<div class="card-details">{"".join(details)}</div>'
+
+    # ── Descripción ──
+    desc_html = ""
+    if item.get("description"):
+        desc_html = f'<p class="card-description">{item["description"]}</p>'
+
+    # ── Enlace "Ver oferta" ──
+    link_html = ""
+    if item.get("url"):
+        link_html = (
+            f'<a class="card-link" href="{item["url"]}" '
+            f'target="_blank" rel="noopener">🔗 Ver oferta</a>'
+        )
+    else:
+        link_html = (
+            f'<span class="card-link" style="background:#94a3b8;cursor:default">'
+            f'🔗 No disponible</span>'
+        )
+
+    # ── Botón "Contactar" ──
+    contact_html = ""
+    phone = item.get("phone", "").strip()
+    email = item.get("email", "").strip()
+    if phone:
+        # Limpiar el teléfono para el enlace tel:
+        clean_phone = phone.replace(" ", "").replace("-", "")
+        contact_html = (
+            f'<a class="card-link contact-btn" href="tel:{clean_phone}" '
+            f'title="Llamar al {phone}">📞 Contactar</a>'
+        )
+    elif email:
+        contact_html = (
+            f'<a class="card-link contact-btn" href="mailto:{email}" '
+            f'title="Enviar email a {email}">✉️ Contactar</a>'
+        )
+    else:
+        contact_html = (
+            f'<span class="card-link contact-btn" style="background:#cbd5e1;cursor:default;opacity:0.6">'
+            f'📞 Contactar</span>'
+        )
+
+    # ── Sitio ──
+    site = item.get("site", "?")
+    site_icons = {"revolico": "🏪", "porlalivre": "📦", "demo_local": "🧪"}
+
+    return f"""
+<div class="result-card">
+    <div class="card-image">{img_html}</div>
+    <div class="card-body">
+        {badges_html}
+        <h3 class="card-title">{item["title"]}</h3>
+        {price_html}
+        {desc_html}
+        {details_html}
+    </div>
+    <div class="card-footer">
+        <span class="card-site">
+            {site_icons.get(site, "🌐")} <strong>{site}</strong>
+        </span>
+        <div class="card-footer-actions">
+            {contact_html}
+            {link_html}
+        </div>
+    </div>
+</div>"""
+
+
+def _empty_state_html(title: str, message: str) -> str:
+    """HTML para estado vacío."""
+    return f"""{CARDS_CSS}
+<div class="empty-state">
+    <div class="icon">🔍</div>
+    <h3>{title}</h3>
+    <p>{message}</p>
+</div>"""
+
+
+# ---------------------------------------------------------------------------
+# Datos de demostración
+# ---------------------------------------------------------------------------
+def _generate_demo_results(query: str, category: str) -> tuple:
+    """Genera resultados simulados con datos enriquecidos."""
+    q = query.title()
+    items = [
+        _build_item(
+            rank=1,
+            title=f"{q} — 3 hab., recién remodelado",
+            description=f"Se vende {query} en excelente estado. Consta de sala-comedor, cocina, 3 habitaciones, baño, patio y terraza. Piso baldosa, techos altos, carpintería de aluminio. Acepto financiamiento.",
+            price=25000.00,
+            site="revolico",
+            url="https://www.revolico.cu/search/all/" + quote(query),
+            contact="Carlos Pérez",
+            phone="+53 5 1234567",
+            email="carlos@email.com",
+            address="Calle 23 #456, Vedado, La Habana",
+            warranty="Escritura pública garantizada",
+            condition="Excelente",
+            badges=[
+                {"type": "urgent", "icon": "🔥", "label": "Oferta"},
+                {"type": "site", "icon": "✅", "label": "Verificado"},
+            ],
+        ),
+        _build_item(
+            rank=2,
+            title=f"{q} — Oportunidad única",
+            description=f"{q} completamente amueblado. Listo para entrar a vivir. Cocina equipada, closet empotrados, rejas y aires acondicionados. Precio negociable.",
+            price=18000.00,
+            site="revolico",
+            url="https://www.revolico.cu/search/all/" + quote(query),
+            contact="María García",
+            phone="+53 7 7654321",
+            address="Miramar, La Habana",
+            condition="Seminuevo",
+            badges=[
+                {"type": "warranty", "icon": "🛡️", "label": "Con garantía"},
+            ],
+        ),
+        _build_item(
+            rank=3,
+            title=f"{q} en Vedado — Venta directa",
+            description=f"Venta directa de {query} en Vedado. 2 plantas, 4 cuartos, 2 baños, garage, patio interior. Agua 24h, electricidad estable. Ideal para inversión.",
+            price=32000.00,
+            site="porlalivre",
+            url="https://www.porlalivre.com/search/" + quote(query),
+            contact="Antonio Rodríguez",
+            phone="+53 5 9988776",
+            email="antonio.r@email.com",
+            address="Calle Línea esq. A, Vedado, La Habana",
+            warranty="Libre de gravamen",
+            condition="Impecable",
+            badges=[
+                {"type": "site", "icon": "⭐", "label": "Destacado"},
+            ],
+        ),
+        _build_item(
+            rank=4,
+            title=f"{q} económico — Urgente",
+            description=f"Vendo {query} por cambio de ciudad. Precio rebajado. Acepto pesos CUP y USD. Trato directo sin intermediarios. Llama ahora!",
+            price=9500.00,
+            site="porlalivre",
+            url="https://www.porlalivre.com/search/" + quote(query),
+            contact="Laura Martínez",
+            phone="+53 5 5544332",
+            address="Centro Habana",
+            condition="Bueno",
+            badges=[
+                {"type": "urgent", "icon": "🔥", "label": "Precio rebajado"},
+                {"type": "warranty", "icon": "🤝", "label": "Trato directo"},
+            ],
+        ),
+        _build_item(
+            rank=5,
+            title=f"{q} de lujo — Casa moderna",
+            description=f"Moderna {query} en reparto residencial. 3 habitaciones con baño en suite, cocina integral, piscina, jardín, cisterna, planta eléctrica. La mejor oportunidad!",
+            price=55000.00,
+            site="revolico",
+            url="https://www.revolico.cu/search/all/" + quote(query),
+            contact="Inmobiliaria Díaz",
+            phone="+53 7 2045678",
+            email="ventas@inmobiliariadiaz.cu",
+            address="Siboney, Playa, La Habana",
+            warranty="1 año de garantía estructural",
+            condition="Nuevo",
+            badges=[
+                {"type": "warranty", "icon": "🛡️", "label": "Garantía 1 año"},
+                {"type": "site", "icon": "💎", "label": "Premium"},
+            ],
+        ),
+    ]
+
+    cards = _render_cards(items)
+    summary = (
+        f"✅ **{len(items)} resultados** para "
+        f"**'{query}'** en **{category}** "
+        f"<span style='color:#94a3b8;font-size:0.85rem'>"
+        f"— modo demostración</span>"
+    )
+
+    return summary, cards, json.dumps(items, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# UI
 # ---------------------------------------------------------------------------
 def build_app() -> gr.Blocks:
-    """Construye y retorna la aplicación Gradio lista para montar."""
+    """Construye la interfaz de usuario con tarjetas modernas."""
     verticals = _get_verticals()
-    adapter_names = _get_adapter_names()
 
     css = """
     footer {display:none !important}
-    .gradio-container {max-width: 1200px !important; margin: 0 auto !important}
+    .gradio-container {max-width: 1100px !important; margin: 0 auto !important}
+    .gr-box {border: none !important; box-shadow: none !important}
+    body {background: #f5f3ef !important}
+    .gradio-container {background: #f5f3ef !important}
+    /* Primary button → navy */
+    button.gr-button-primary {background: #1e3a5f !important; border-color: #1e3a5f !important}
+    button.gr-button-primary:hover {background: #2c5282 !important; border-color: #2c5282 !important}
+    /* Tabs accent */
+    .gr-tabs .tab-nav button.selected {border-bottom-color: #1e3a5f !important; color: #1e3a5f !important}
+    /* Inputs subtle border */
+    input, textarea, select {border-color: #d4cfc7 !important}
+    input:focus, textarea:focus {border-color: #1e3a5f !important; box-shadow: 0 0 0 2px rgba(30,58,95,0.15) !important}
+    .gr-dropdown {border-color: #d4cfc7 !important}
+    .gr-dropdown:focus {border-color: #1e3a5f !important}
     """
 
-    with gr.Blocks(
-        title="ScrapperGenérico",
-    ) as demo:
-        # Gradio 6.x: theme y css se setean después de crear el bloque
-        demo.theme = gr.themes.Soft()
-        demo.css = css
-        # Header
+    demo = gr.Blocks(title="NovaSearch")
+    demo.css = css
+    demo.theme = gr.themes.Soft()
+    with demo:
+        # ─── Encabezado ──────────────────────────────────────
         gr.HTML(
-            """
-            <div style="text-align:center;padding:24px 0 8px">
-                <h1 style="margin:0;font-size:2rem">🕸️ ScrapperGenérico</h1>
-                <p style="color:#64748b;margin:4px 0 0;font-size:1.1rem">
-                    Buscador universal — productos, servicios y ofertas
-                    en múltiples sitios simultáneamente
+            f"""
+            <div style="text-align:center;padding:28px 0 16px;
+                        background:linear-gradient(180deg,#1e3a5f 0%,#152d4a 100%);
+                        border-radius:20px;margin-bottom:24px;
+                        box-shadow:0 4px 20px rgba(30,58,95,0.15)">
+                <div style="display:flex;align-items:center;justify-content:center;gap:12px">
+                    <span style="font-size:2.2rem">🔍</span>
+                    <h1 style="margin:0;font-size:2rem;font-weight:800;
+                               color:#ffffff;letter-spacing:-0.02em">
+                        NovaSearch
+                    </h1>
+                </div>
+                <p style="color:#cbd5e1;margin:8px 0 0;font-size:1.05rem;font-weight:400;
+                           letter-spacing:0.01em">
+                    Busca en múltiples clasificados cubanos, en un solo lugar
                 </p>
+                <div style="margin-top:12px;display:flex;justify-content:center;gap:24px;
+                            font-size:0.85rem;color:#94a3b8">
+                    <span style="background:rgba(255,255,255,0.1);padding:4px 14px;
+                                 border-radius:20px">🏪 {_adapter_loader.count} sitios</span>
+                    <span style="background:rgba(255,255,255,0.1);padding:4px 14px;
+                                 border-radius:20px">📂 {len(verticals)} categorías</span>
+                </div>
             </div>
             """
         )
 
+        # ─── Pestañas ────────────────────────────────────────
         with gr.Tabs():
-            # =================================================================
-            # TAB 1 — BÚSQUEDA
-            # =================================================================
+            # ═══════════════════════════════════════════════════
+            # PESTAÑA 1: BUSCAR
+            # ═══════════════════════════════════════════════════
             with gr.Tab("🔍 Buscar"):
+                # --- Barra de búsqueda ---
                 with gr.Row(equal_height=True):
                     query_input = gr.Textbox(
-                        label="¿Qué buscas?",
-                        placeholder=(
-                            "Ej: casa 3 habitaciones La Habana, "
-                            "iPhone 15, zapatos talla 42…"
-                        ),
-                        scale=3,
+                        label="",
+                        placeholder="¿Qué quieres buscar?  Ej: casa, laptop, zapatos...",
+                        scale=4,
                         container=True,
                     )
-                    vertical_dropdown = gr.Dropdown(
-                        label="Vertical",
+                    category_dropdown = gr.Dropdown(
+                        label="Categoría",
                         choices=verticals,
                         value=verticals[0] if verticals else None,
                         scale=1,
                         interactive=True,
                     )
-
-                with gr.Row(equal_height=True):
-                    site_dropdown = gr.Dropdown(
-                        label="Sitio (opcional — vacío = todos)",
-                        choices=["all"] + adapter_names,
-                        value="all",
-                        scale=2,
-                        interactive=True,
-                    )
                     search_btn = gr.Button(
-                        "🔍 Buscar", variant="primary", size="lg", scale=1
+                        "🔍 Buscar",
+                        variant="primary",
+                        size="lg",
+                        scale=1,
                     )
 
+                # --- Resultados ---
                 summary_md = gr.Markdown(
                     value="",
-                    label="Resumen",
+                    label="",
                 )
 
-                results_table = gr.Dataframe(
-                    headers=["#", "Título", "Descripción", "Precio", "Sitio"],
-                    datatype=["number", "str", "str", "str", "str"],
-                    column_count=(5, "fixed"),
-                    label="Adaptadores Cargados",
-                    wrap=True,
+                cards_output = gr.HTML(
+                    value="",
+                    label="Resultados",
                 )
 
-                # Ajustar ancho de columnas para adaptadores
-                gr.Markdown(
-                    f"**Total:** {_adapter_loader.count} adaptadores  ·  "
-                    f"**Verticales:** {', '.join(verticals)}"
+                raw_json = gr.JSON(
+                    label="Datos completos",
+                    visible=False,
                 )
 
-                # Recargar adaptadores (por si se agregaron nuevos YAML)
-                if verticals:
-                    gr.Markdown("---")
-                    gr.Markdown(
-                        "💡 *Agrega archivos ``.yaml`` en el directorio "
-                        "``adapters/`` y reinicia el servidor.*"
+                # --- Conexión del botón ---
+                search_btn.click(
+                    fn=search_action,
+                    inputs=[query_input, category_dropdown],
+                    outputs=[summary_md, cards_output, raw_json],
+                )
+
+                query_input.submit(
+                    fn=search_action,
+                    inputs=[query_input, category_dropdown],
+                    outputs=[summary_md, cards_output, raw_json],
+                )
+
+                # --- Sitios disponibles (plegable) ---
+                with gr.Accordion("📡 Sitios disponibles", open=False):
+                    adapter_rows = []
+                    for a in _adapter_loader.get_all():
+                        adapter_rows.append([a.name, a.vertical, len(a.fields)])
+                    gr.Dataframe(
+                        value=adapter_rows,
+                        headers=["Sitio", "Categoría", "Campos"],
+                        datatype=["str", "str", "number"],
+                        column_count=(3, "fixed"),
+                        wrap=True,
                     )
 
-            # =================================================================
-            # TAB 3 — ESTADO / AYUDA
-            # =================================================================
-            with gr.Tab("⚙️ Estado"):
-                gr.Markdown("## 🚦 Estado del Servicio")
-                gr.Markdown(f"- **Adaptadores cargados:** {_adapter_loader.count}")
-                gr.Markdown(
-                    f"- **Verticales disponibles:** {', '.join(verticals)}"
-                )
-                gr.Markdown(
-                    "- **API REST:** Visita "
-                    "[`/api/docs`](/api/docs) para Swagger"
-                )
-                gr.Markdown(
-                    "- **Health Check:** [`/api/health`](/api/health)"
-                )
-                gr.Markdown(
-                    "- **Stack:** FastAPI + BeautifulSoup + Gradio "
-                    "en HuggingFace Spaces"
-                )
+                    # ═══════════════════════════════════════════════════
+                    # PESTAÑA 2: AYUDA
+                    # ═══════════════════════════════════════════════════
+                    with gr.Tab("❓ Ayuda"):
+                        gr.HTML(
+                            """
+                            <div style="max-width:700px;margin:0 auto;padding:20px 0">
+                                <h2 style="color:#1e3a5f;font-weight:700">📖 ¿Cómo usar NovaSearch?</h2>
 
-                gr.Markdown("---")
-                gr.Markdown("## 📖 Cómo usar")
-                gr.Markdown(
-                    """
-                    1. Escribe lo que buscas en el campo **¿Qué buscas?**
-                    2. Selecciona la **Vertical** (categoría)
-                    3. Opcional: elige un **Sitio** específico
-                    4. Presiona **Buscar** o la tecla **Enter**
-                    5. Los resultados aparecen en la tabla inferior
+                                <div style="display:flex;gap:20px;margin:24px 0;flex-wrap:wrap">
+                                    <div style="flex:1;min-width:160px;padding:20px;
+                                                background:#f0ede8;border-radius:12px;text-align:center;
+                                                border:1px solid #e8e4de">
+                                        <div style="font-size:2rem">✏️</div>
+                                        <h3 style="margin:8px 0 4px;font-size:1rem;color:#1e3a5f">1. Escribe</h3>
+                                        <p style="margin:0;font-size:0.85rem;color:#57534e">
+                                            Lo que quieres buscar. Sé específico.</p>
+                                    </div>
+                                    <div style="flex:1;min-width:160px;padding:20px;
+                                                background:#f0ede8;border-radius:12px;text-align:center;
+                                                border:1px solid #e8e4de">
+                                        <div style="font-size:2rem">📂</div>
+                                        <h3 style="margin:8px 0 4px;font-size:1rem;color:#1e3a5f">2. Categoría</h3>
+                                        <p style="margin:0;font-size:0.85rem;color:#57534e">
+                                            Selecciona dónde buscar.</p>
+                                    </div>
+                                    <div style="flex:1;min-width:160px;padding:20px;
+                                                background:#f0ede8;border-radius:12px;text-align:center;
+                                                border:1px solid #e8e4de">
+                                        <div style="font-size:2rem">🔍</div>
+                                        <h3 style="margin:8px 0 4px;font-size:1rem;color:#1e3a5f">3. Buscar</h3>
+                                        <p style="margin:0;font-size:0.85rem;color:#57534e">
+                                            Presiona y obtén resultados.</p>
+                                    </div>
+                                </div>
 
-                    Los adaptadores definen qué sitios se buscan y cómo
-                    se extraen los datos. Puedes crear nuevos adaptadores
-                    agregando archivos YAML en ``adapters/``.
-                    """
-                )
+                                <h3 style="color:#1e3a5f;font-weight:600">❓ Preguntas frecuentes</h3>
+
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Qué sitios busca?</strong><br>
+                                    <span style="color:#57534e">Todos los sitios disponibles en la categoría que elijas.</span></p>
+                                </div>
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Por qué no aparecen resultados?</strong><br>
+                                    <span style="color:#57534e">El sitio puede no estar accesible en este momento, o no hay resultados para tu búsqueda. Intenta con otros términos.</span></p>
+                                </div>
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Los precios son actualizados?</strong><br>
+                                    <span style="color:#57534e">Los resultados se obtienen en tiempo real desde los sitios de clasificados.</span></p>
+                                </div>
+                                <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
+                                    <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Cómo agrego más sitios?</strong><br>
+                                    <span style="color:#57534e">Contacta al administrador del sistema.</span></p>
+                                </div>
+                            </div>
+                            """
+                        )
 
     return demo
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _get_verticals() -> list[str]:
+    return sorted({a.vertical for a in _adapter_loader.get_all()})

@@ -1,20 +1,26 @@
-# Dockerfile para HuggingFace Spaces
-# Usar: Copiar modulo_1_servicio/ al Space de HF
-# Copiar este Dockerfile como Dockerfile en la raíz del Space
-
+# Dockerfile para NovaSearch en HuggingFace Spaces
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar requirements
-COPY requirements-hf.txt requirements.txt
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar requirements e instalar
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código
-COPY . .
+# Copiar código del proyecto
+COPY modulo_1_servicio/ modulo_1_servicio/
+COPY adapters/ adapters/
+COPY app.py .
+COPY requirements.txt .
+COPY README.md .
 
-# Exponer puerto
+# Puerto que HF Spaces espera
 EXPOSE 7860
 
-# Uvicorn sirve en el puerto que HF espera
-CMD ["uvicorn", "modulo_1_servicio.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Iniciar con uvicorn (Gradio montado sobre FastAPI)
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]

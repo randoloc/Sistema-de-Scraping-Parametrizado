@@ -1,0 +1,37 @@
+# Adaptador: Porlalivre (porlalivre.com)
+# Clasificados cubanos — múltiples categorías
+# NOTA: El sitio está en renovación (2026). Se activará cuando vuelva.
+name: porlalivre
+site: porlalivre.com
+vertical: general
+search_url: "https://www.porlalivre.com/search/{query}"
+container_selector: "article.item, div.listing, div.ad-item"
+pagination: "?page={page}"
+fields:
+  - name: titulo
+    selector: "h3 a, .item-title a, .title"
+    type: text
+  - name: descripcion
+    selector: ".description, .item-desc, p.desc"
+    type: text
+  - name: precio
+    selector: ".price, .item-price, .precio"
+    type: price
+  - name: ubicacion
+    selector: ".location, .item-location, .ubicacion"
+    type: text
+  - name: fecha
+    selector: ".date, .item-date, .fecha"
+    type: text
+  - name: url
+    selector: "h3 a, .item-title a"
+    type: url
+  - name: imagen
+    selector: "img.thumb, .item-image img, img"
+    type: image
+
+canonical_map:
+  title: titulo
+  description: descripcion
+  price: precio
+  url: url

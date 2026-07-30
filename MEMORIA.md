@@ -5,7 +5,7 @@
 
 ---
 
-## Última actualización: 2026-07-23 (Sesión 6 - Cierre)
+## Última actualización: 2026-07-23 (Sesión 7)
 
 ---
 
@@ -13,7 +13,7 @@
 
 **Visión final**: Sistema B2B SaaS de scraping genérico multi-vertical. Cualquier persona busca productos/servicios en múltiples sitios simultáneamente con filtros. Escalar a modelo de suscripción para agentes inmobiliarios, concesionarias, comercios.
 
-**Stack actual**: Python 3.12, FastAPI, httpx, BeautifulSoup, PySide6+QML (desktop), Pydantic, pytest, SQLite.
+**Stack actual**: Python 3.14, FastAPI, httpx, BeautifulSoup, Gradio (web), Pydantic, pytest, SQLite.
 
 **Repos**: `https://github.com/randoloc/Sistema-de-Scraping-Parametrizado`
 
@@ -32,6 +32,49 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 ---
 
 ## 📋 Historial de Sesiones
+
+### Sesión 7 — 2026-07-23: Website Gradio funcional + Adaptadores reales + Telegram Bot
+
+**Contexto**: El usuario quiere un producto para Cuba, 100% gratuito (sin USD, sin tarjetas).
+PySide6/QML se reemplaza por Gradio web (accesible desde cualquier navegador).
+
+**Qué se hizo**:
+1. ✅ **Website Gradio rediseñado** para usuario final (sin tecnicismos):
+   - Interfaz simple: "¿Qué quieres buscar?" + categoría + botón Buscar
+   - Resultados en tabla clara: # Título, Descripción, Precio, Sitio, Enlace
+   - Pestaña de ayuda para el usuario
+   - Datos demo (DEMO_MODE=1) para probar sin conexión a sitios reales
+2. ✅ **Adaptadores reales creados**:
+   - `adapters/revolico.yaml` — Revolico.cu (clasificados Cuba, 7 campos)
+   - `adapters/porlalivre.yaml` — Porlalivre.com (clasificados Cuba, 7 campos)
+   - Nota: Ambos sitios no accesibles desde esta red (DNS), funcionales desde Cuba
+3. ✅ **Telegram Bot** creado (`modulo_1_servicio/bot/telegram_bot.py`):
+   - Bot conversacional: usuario escribe query → bot busca en todos los adaptadores
+   - Soporta comandos: /start, /help, /search, /sites
+   - Sin librerías extra (usa httpx + Telegram Bot API)
+   - Modo polling o webhook
+4. ✅ **Git actualizado**: rebase exitoso con última versión de GitHub (commit c43ab3b)
+5. ✅ **Conflictos resueltos**: multi-source services UI mantenida sobre HEAD
+
+**Archivos creados/modificados**:
+- `modulo_1_servicio/ui/gradio_app.py` — Reescrib: UI usuario final + modo demo
+- `adapters/revolico.yaml` — Nuevo: adaptador Revolico
+- `adapters/porlalivre.yaml` — Nuevo: adaptador Porlalivre
+- `modulo_1_servicio/bot/__init__.py` — Nuevo: paquete bot
+- `modulo_1_servicio/bot/telegram_bot.py` — Nuevo: bot de Telegram
+- `modulo_1_servicio/scraping/models.py` — Limpieza (se revertió TELEGRAM source type)
+- `MEMORIA.md` — Esta actualización
+
+**Tests**: 118/118 pasando ✅ (sin cambios en tests)
+
+**Pendiente**:
+- [ ] Desplegar en HF Spaces y probar con acceso a sitios reales
+- [ ] Crear adaptadores adicionales (Revolico específico por categoría)
+- [ ] Telegram Bot: obtener token de @BotFather y probar end-to-end
+- [ ] Integrar demo mode como feature toggle en vez de env var
+- [ ] Escribir tests para gradio_app.py y telegram_bot.py
+
+---
 
 ### Sesión 6 — 2026-07-23 (Cierre): Tests arreglados + Frontend Gradio
 **Commit**: `c4d0b23`

@@ -7,17 +7,40 @@ sdk: docker
 pinned: false
 ---
 
-# 🕸️ ScrapperGenérico
+# 🕸️ ScrapperGenérico / NovaSearch
 
-**Sistema parametrizado de scraping, extracción y entrega multi-canal.**
+**Sistema parametrizado de scraping, extracción y entrega multi-canal — desplegado como NovaSearch en HF Spaces.**
 
-> Un motor de scraping genérico, configurable por YAML/JSON, con API REST, app de escritorio y entregas automatizadas por email, WhatsApp y web. Diseñado para ser **independiente del dominio**: scrapeas lo que quieras, de donde quieras, y lo recibes donde lo necesites.
+> Busca en múltiples clasificados cubanos, en un solo lugar. Motor genérico configurable por YAML/JSON, con API REST y entregas automatizadas por email, WhatsApp y web.
 
 ---
 
-## 📦 Arquitectura
+## 🚀 Acceso rápido
 
-El proyecto se divide en **tres módulos independientes** que pueden desplegarse por separado:
+| Recurso | URL |
+|---------|-----|
+| 🌐 **Web UI (Gradio)** | [https://randolo-novasearch.hf.space](https://randolo-novasearch.hf.space) |
+| 📚 **API Docs (Swagger)** | [https://randolo-novasearch.hf.space/api/docs](https://randolo-novasearch.hf.space/api/docs) |
+| ❤️ **Health Check** | [https://randolo-novasearch.hf.space/api/health](https://randolo-novasearch.hf.space/api/health) |
+
+## 🚀 Cómo usar
+
+1. **Escribe** lo que quieres buscar (ej: "casa", "laptop", "zapatos")
+2. **Selecciona** una vertical (categoría)
+3. **Presiona** Buscar y obtén resultados de todos los sitios
+
+## 🛠 Stack
+
+| Capa | Tecnología |
+|------|-----------|
+| **Frontend** | Gradio 6 (montado sobre FastAPI) |
+| **API** | FastAPI + Uvicorn |
+| **Scraping** | httpx + BeautifulSoup + lxml |
+| **Config** | Pydantic + PyYAML |
+| **Bot** | Python Telegram Bot |
+| **Hosting** | Hugging Face Spaces (Docker SDK) |
+
+## 📦 Arquitectura
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -35,188 +58,87 @@ El proyecto se divide en **tres módulos independientes** que pueden desplegarse
 └─────────────────┴─────────────────┴─────────────────┘
 ```
 
-### Módulo 1 — Servicio de Scraping (`modulo_1_servicio/`)
-
-API REST construida con **FastAPI** que orquesta todo el pipeline:
-
-1. **Configuración** — Recibe YAML/JSON con qué extraer, dónde y cómo
-2. **Extracción** — Motores plugables (BeautifulSoup, Playwright, HTTP API)
-3. **Filtrado** — Inclusión/exclusión por patrón, longitud, deduplicación
-4. **Paginación** — Template de URLs, páginas múltiples
-5. **Entrega** — Email, WhatsApp, generación de página web
-
-**Endpoints principales:**
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/health` | Health check |
-| `POST` | `/api/scrape` | Ejecutar scraping |
-| `GET` | `/api/results/{id}` | Resultados JSON |
-| `GET` | `/api/results/{id}/web` | Página HTML de resultados |
-| `POST` | `/api/deliver/{id}` | Entregar resultados |
-| `POST` | `/api/whatsapp/send-activation` | Activar WhatsApp |
-| `POST` | `/api/whatsapp/webhook` | Webhook WhatsApp |
-
-**Despliegue inmediato en HuggingFace Spaces** — incluye `Dockerfile.hf`.
-
-### Módulo 2 — App de Administración (`modulo_2_admin/`)
-
-Aplicación desktop con **PySide6 + QML** que expone:
-
-- **Dashboard** — Estadísticas en vivo, estado del servicio
-- **Nuevo Scraper** — Configuración visual de fuentes, campos y selectores CSS
-- **Resultados** — Exploración de items extraídos por operación
-- **Entregas** — Gestión de destinatarios email/WhatsApp
-- **Historial** — Registro local en SQLite con detalle completo
-
-La lógica de negocio vive en `PythonBridge`, un puente Python ↔ QML que **puede reutilizarse desde Flutter/Dart** en una futura versión mobile.
-
-### Módulo 3 — Resultados y Plantillas (`modulo_3_resultados/`)
-
-Templates Jinja2 para renderizar resultados en múltiples formatos:
-- Email HTML responsivo
-- Página web embebida
-- Mensajes de WhatsApp
-
----
-
 ## ⚙️ Configuración
 
-El scraper se configura con un diccionario JSON/YAML. Ejemplo mínimo:
+### Adaptadores YAML
 
-```json
-{
-  "source": "https://ejemplo.com/productos",
-  "source_type": "web_page",
-  "fields": [
-    { "name": "titulo", "selector": "h2.product-title", "type": "text" },
-    { "name": "precio", "selector": "span.price", "type": "price" },
-    { "name": "imagen", "selector": "img.product-img", "type": "image" }
-  ],
-  "container_selector": "div.product-card",
-  "filters": {
-    "min_length": 10,
-    "deduplicate": true,
-    "max_results": 50
-  },
-  "pagination": {
-    "strategy": "url",
-    "url_template": "https://ejemplo.com/productos?page={page}",
-    "max_pages": 5
-  },
-  "delivery": {
-    "emails": ["user@ejemplo.com"],
-    "generate_web": true
-  }
-}
+Los adaptadores definen cómo extraer datos de cada sitio. Se cargan desde `adapters/*.yaml`:
+
+```yaml
+name: revolico
+vertical: clasificados
+container_selector: "div.advice"
+fields:
+  - name: title
+    selector: "h2 a"
+    type: text
+  - name: price
+    selector: "span.price"
+    type: price
 ```
 
-### Tipos de campo soportados
+### Variables de entorno
 
-| Tipo | Descripción | Ejemplo |
-|------|-------------|---------|
-| `text` | Texto plano | `"Zapatos deportivos"` |
-| `price` | Precio (US/EU) | `"$39.99"` → `39.99` |
-| `url` | Enlace | `"/producto/123"` |
-| `number` | Número | `"1,234"` → `1234.0` |
-| `date` | Fecha | `"2024-01-15"` |
-| `image` | URL de imagen | `"/img/photo.jpg"` |
-| `boolean` | Verdadero/falso | `"true"` → `True` |
-
----
-
-## 🚀 Primeros pasos
-
-```bash
-# Clonar
-git clone https://github.com/randoloc/Sistema-de-Scraping-Parametrizado.git
-cd Sistema-de-Scraping-Parametrizado
-
-# Instalar dependencias base
-pip install -e .
-
-# Con todas las dependencias
-pip install -e ".[all]"
-
-# Solo módulo 1 (servicio API)
-pip install -e ".[modulo1]"
-
-# Solo módulo 2 (app desktop)
-pip install -e ".[modulo2]"
-```
-
-### Iniciar el servicio
-
-```bash
-uvicorn modulo_1_servicio.main:app --reload
-# → http://localhost:8000/docs (Swagger UI)
-# → http://localhost:8000/api/health
-```
-
-### Iniciar la app de administración
-
-```bash
-python -m modulo_2_admin.main
-```
-
----
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `SENDGRID_API_KEY` | API key de SendGrid | Para email |
+| `TELEGRAM_TOKEN` | Token del bot de Telegram | Para Telegram |
+| `WHATSAPP_ACCOUNT_SID` | Account SID de Twilio | Para WhatsApp |
+| `WHATSAPP_AUTH_TOKEN` | Auth token de Twilio | Para WhatsApp |
 
 ## 🧪 Tests
 
 ```bash
-# Todo el suite
-pytest -v --tb=short
-
-# Solo módulo 1 (servicio)
-pytest tests/modulo_1/ -v
-
-# Solo módulo 2 (admin + integración)
-pytest tests/modulo_2/ -v
-
-# Tests de integración (admin client ↔ FastAPI)
-pytest tests/modulo_2/test_integration.py -v
-
-# Con cobertura
-pytest --cov=modulo_1_servicio --cov=modulo_2_admin --cov-report=term-missing
+pytest -v                          # todos los tests
+pytest -v -m "not slow"            # solo tests rápidos
+pytest -v --cov=modulo_1_servicio  # con cobertura
 ```
 
-**60+ tests** — unitarios, de integración y mocks — **100% pasando**.
+## 📁 Estructura del proyecto
 
----
+```
+app.py                         ← Entry point HF Spaces
+Dockerfile                     ← Docker SDK para HF
+requirements.txt               ← Dependencias HF Spaces
+adapters/                      ← Config YAML por sitio
+├── revolico.yaml
+├── porlalivre.yaml
+└── demo_local.yaml
+modulo_1_servicio/             ← API REST + scraping
+├── main.py                    ← FastAPI app
+├── api/                       ← Rutas FastAPI
+├── bot/                       ← Bot de Telegram
+├── scraping/                  ← Motor de scraping
+│   ├── adapters/              ← Carga de adaptadores YAML
+│   ├── extractors/            ← Estrategias de extracción
+│   ├── engine.py              ← Orquestador
+│   ├── normalizer.py          ← Normalización de resultados
+│   └── anti_scraping.py
+├── config/                    ← Esquemas de configuración
+├── deliveries/                ← Canales de entrega
+├── templates/                 ← Templates HTML
+└── ui/gradio_app.py           ← Frontend Gradio (NovaSearch)
+modulo_2_admin/                ← App de escritorio (PySide6)
+modulo_3_resultados/           ← Templates multi-canal
+tests/                         ← Tests con pytest
+pyproject.toml                 ← Configuración del proyecto
+```
 
-## 🏗️ Stack
+## 🧪 Modo desarrollo
 
-| Capa | Tecnología |
-|------|-----------|
-| **Lenguaje** | Python 3.11+ |
-| **API** | FastAPI + Uvicorn |
-| **Scraping** | httpx + BeautifulSoup + lxml |
-| **Configuración** | Pydantic + PyYAML |
-| **GUI Desktop** | PySide6 + QML |
-| **Cliente HTTP** | httpx (preparado para migrar a Dart/Flutter) |
-| **Persistencia** | SQLite (historial local) |
-| **Templates** | Jinja2 |
-| **Tests** | pytest + pytest-asyncio + cobertura |
-| **Calidad** | Ruff + MyPy strict |
+```bash
+# Activar entorno
+source .venv/bin/activate
 
----
+# Ejecutar con modo demo (datos simulados)
+DEMO_MODE=1 python app.py
 
-## 🧠 Filosofía
-
-> **CONCEPTOS > CÓDIGO**
-
-Este proyecto no es solo un scraper. Es un **ejercicio de arquitectura limpia**: separación de responsabilidades, inyección de dependencias, modelos de dominio ricos y una API layer que trasciende el framework.
-
-El `PythonBridge` del Módulo 2 está diseñado para que, cuando migres a Flutter, **solo reemplaces QML por Dart** — la lógica de negocio permanece intacta.
-
----
-
-## 📄 Licencia
-
-MIT — Randy Mustelier Rivero
+# Modo producción
+python app.py
+```
 
 ---
 
 <p align="center">
-  <sub>Hecho con ❤️ y cero frameworks mágicos.</sub>
+  <sub>Hecho con ❤️ para Cuba</sub>
 </p>
