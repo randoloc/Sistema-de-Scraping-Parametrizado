@@ -8,11 +8,20 @@ Despliegue en HuggingFace Spaces:
     - Crear requirements.txt con las dependencias
     - Configurar app.py que importe desde modulo_1_servicio.main
     - Añadir cron-job.org apuntando a /api/health cada 30 min
+
+Bot de Telegram:
+    La app inicia automáticamente el bot en background si
+    TELEGRAM_BOT_TOKEN está configurado en el entorno.
+    También se puede ejecutar standalone con:
+        python -m modulo_1_servicio.run_bot
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -30,10 +39,34 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
+_bot_task: asyncio.Task[None] | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _bot_task
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if token:
+        from modulo_1_servicio.bot.bot_app import run_bot
+        _bot_task = asyncio.create_task(run_bot(token))
+        logger.info("Telegram bot iniciado en background")
+    yield
+    if _bot_task:
+        _bot_task.cancel()
+        try:
+            await _bot_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Telegram bot detenido")
+
+
 app = FastAPI(
     title="ScrapperGenérico — Servicio de Scraping",
     version="0.1.0",
     description="API para scraping genérico y entrega multi-canal",
+    lifespan=lifespan,
 )
 
 app.include_router(scrape_router)

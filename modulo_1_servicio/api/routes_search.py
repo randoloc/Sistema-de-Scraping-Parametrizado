@@ -3,12 +3,17 @@
 Fase 2: endpoint ``POST /api/search`` que recibe una consulta y vertical,
 encuentra adaptadores YAML, ejecuta scraping en cada uno y normaliza
 los resultados a un schema canónico.
+
+Soporta dos tipos de adaptadores:
+- **YAML estándar**: usa selectores CSS + BS4 extractor (flujo normal)
+- **Python custom**: usa una clase Python para sitios dinámicos (ej: Revolico)
 """
 
 from __future__ import annotations
 
+import importlib
 import logging
-from typing import Annotated, Any
+from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
@@ -26,7 +31,7 @@ from modulo_1_servicio.scraping.models import (
     ScrapeConfig,
     SourceType,
 )
-from modulo_1_servicio.scraping.normalizer import ResultNormalizer
+from modulo_1_servicio.scraping.normalizer import CanonicalItem, ResultNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +45,40 @@ _adapter_loader = AdapterLoader()
 _adapter_loader.load_all()
 
 _normalizer = ResultNormalizer()
+
+# Cache de clases de adaptadores Python importados
+_python_adapter_classes: dict[str, type] = {}
+
+
+def _get_python_adapter_class(python_adapter_path: str) -> type:
+    """Importa dinámicamente y cachea una clase de adaptador Python.
+
+    El formato es ``module.ClassName`` relativo al paquete de adaptadores.
+    Ej: ``revolico_adapter.RevolicoAdapter``.
+    """
+    if python_adapter_path in _python_adapter_classes:
+        return _python_adapter_classes[python_adapter_path]
+
+    try:
+        parts = python_adapter_path.rsplit(".", 1)
+        if len(parts) != 2:
+            raise ValueError(
+                f"Formato inválido: '{python_adapter_path}'. "
+                "Esperado: 'module.ClassName'"
+            )
+        module_name, class_name = parts
+
+        full_module = f"modulo_1_servicio.scraping.adapters.{module_name}"
+        module = importlib.import_module(full_module)
+        cls = getattr(module, class_name)
+        _python_adapter_classes[python_adapter_path] = cls
+        logger.info("Adaptador Python cargado: %s → %s.%s", python_adapter_path, full_module, class_name)
+        return cls
+    except (ImportError, AttributeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error cargando adaptador Python '{python_adapter_path}': {exc}",
+        )
 
 
 class SearchRequest(BaseModel):
@@ -145,6 +184,33 @@ async def search_adapters(payload: SearchRequest) -> dict[str, Any]:
         )
 
         try:
+            # ── RUTA: Adaptador Python custom ──
+            if adapter.python_adapter:
+                cls = _get_python_adapter_class(adapter.python_adapter)
+                instance = cls()
+                try:
+                    canonical_items = await instance.search(payload.query, page=1)
+                finally:
+                    await instance.close()
+
+                normalized_dicts = [item.model_dump() for item in canonical_items]
+                for item in normalized_dicts:
+                    item["rank"] = total_rank
+                    total_rank += 1
+
+                all_items.extend(normalized_dicts)
+                adapter_result.items_count = len(normalized_dicts)
+
+                logger.info(
+                    "Adaptador Python %s: %d items para '%s'",
+                    adapter.name,
+                    adapter_result.items_count,
+                    payload.query,
+                )
+                adapter_results.append(adapter_result)
+                continue
+
+            # ── RUTA: YAML estándar (BS4 + selectores) ──
             # Construir URL de búsqueda
             search_url = _expand_search_url(adapter.search_url, payload.query)
 
@@ -223,6 +289,8 @@ async def search_adapters(payload: SearchRequest) -> dict[str, Any]:
                 payload.query,
             )
 
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error("Error en adaptador %s: %s", adapter.name, e)
             adapter_result.error = str(e)

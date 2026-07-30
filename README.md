@@ -3,8 +3,7 @@ title: NovaSearch
 emoji: 🕸️
 colorFrom: blue
 colorTo: green
-sdk: gradio
-app_file: app.py
+sdk: docker
 pinned: false
 ---
 

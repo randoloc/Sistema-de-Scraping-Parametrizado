@@ -50,3 +50,6 @@ ms-playwright/
 
 # Screenshots / assets not for commit
 google\ app\ password.png
+
+# Tokens / secrets
+hf_*.txt

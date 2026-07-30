@@ -1,0 +1,7 @@
+# Adaptador para Revolico (Next.js SPA — requiere adaptador Python custom)
+# Este YAML es solo un registro. La ejecución real usa RevolicoAdapter.
+name: revolico
+site: revolico.com
+vertical: general
+search_url: "https://www.revolico.com/search?q={query}"
+python_adapter: revolico_adapter.RevolicoAdapter

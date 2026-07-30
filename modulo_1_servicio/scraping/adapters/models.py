@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class AdapterField(BaseModel):
@@ -34,7 +34,7 @@ class SiteAdapter(BaseModel):
         description="Selector CSS para el contenedor de cada resultado",
     )
     fields: list[AdapterField] = Field(
-        min_length=1,
+        default_factory=list,
         description="Campos a extraer de cada resultado",
     )
     canonical_map: Optional[dict[str, str]] = Field(
@@ -45,3 +45,21 @@ class SiteAdapter(BaseModel):
             "Si es None, no se aplica normalización."
         ),
     )
+    python_adapter: Optional[str] = Field(
+        default=None,
+        description=(
+            "Ruta al módulo Python con un adaptador custom (ej: revolico_adapter.RevolicoAdapter). "
+            "Cuando se especifica, el adaptador YAML se usa solo como registro — la ejecución "
+            "usa la clase Python en lugar del flujo BS4+selectores."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_fields_or_python_adapter(self) -> SiteAdapter:
+        if not self.fields and not self.python_adapter:
+            raise ValueError(
+                "Debe especificar al menos un 'field' o un 'python_adapter'"
+            )
+        if self.fields and not all(isinstance(f, AdapterField) for f in self.fields):
+            raise ValueError("Todos los elementos de 'fields' deben ser AdapterField")
+        return self
