@@ -225,6 +225,7 @@ async def search_adapters(payload: SearchRequest) -> dict[str, Any]:
                     name=f.name,
                     selector=f.selector,
                     field_type=FieldType(f.type) if f.type in ("text", "price", "url", "number", "date", "image") else FieldType.TEXT,
+                    required=f.required,
                 )
                 for f in adapter.fields
             )

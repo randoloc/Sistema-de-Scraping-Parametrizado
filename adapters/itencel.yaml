@@ -1,0 +1,44 @@
+# Adaptador: Itencel (itencel.com)
+# Clasificados cubanos — WordPress con tema RTCL (Classified Listing).
+# HTML estático server-rendered → compatible con BeautifulSoupExtractor (BS4).
+#
+# VERIFICADO EN VIVO (2026-08-03):
+# - Búsqueda: GET https://itencel.com/all-ads/?q={query} → 200
+#   (formulario real de la homepage: action=/all-ads/ input name=q)
+# - Paginación: /all-ads/page/{page}/?q={query} (path-based)
+# - Contenedor: .rtcl-listing-item  (50 resultados por página)
+# - Título: h3.rtin-title (texto incluye el <a>)
+# - Precio: .rtcl-price-amount → "25 USD"
+# - Imagen: img.rtcl-thumbnail (src directo, ya cargada)
+# - Enlace: a.rtin-thumb-inner (primer <a> del thumb → href al anuncio)
+# - Ubicación: li:has(.fa-map-marker) → "La Habana"
+name: itencel
+site: itencel.com
+vertical: general
+search_url: "https://itencel.com/all-ads/page/{page}/?q={query}"
+pagination: "/all-ads/page/{page}/?q={query}"
+container_selector: ".rtcl-listing-item"
+fields:
+  - name: titulo
+    selector: "h3.rtin-title"
+    type: text
+  - name: precio
+    selector: ".rtcl-price-amount"
+    type: price
+    required: false
+  - name: url
+    selector: "a.rtin-thumb-inner"
+    type: url
+  - name: imagen
+    selector: "img.rtcl-thumbnail"
+    type: image
+  - name: ubicacion
+    selector: "li:has(.fa-map-marker)"
+    type: text
+
+canonical_map:
+  title: titulo
+  price: precio
+  url: url
+  image_url: imagen
+  location: ubicacion

@@ -70,6 +70,122 @@ class TestBeautifulSoupExtractor:
         result = extractor._select_all(soup, "span")
         assert result == []
 
+    def test_extract_url_from_anchor(self, extractor: BeautifulSoupExtractor) -> None:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<div class="item"><a class="link" href="/detalles/123">Titulo del anuncio</a></div>',
+            "lxml",
+        )
+        container = soup.select_one(".item")
+        field = FieldDefinition(name="url", selector="a.link", field_type=FieldType.URL)
+        assert extractor._extract_field(container, field) == "/detalles/123"
+
+    def test_extract_url_full(self, extractor: BeautifulSoupExtractor) -> None:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<div class="item"><a href="https://www.timbirichi.com/x/y-z">Titulo</a></div>',
+            "lxml",
+        )
+        field = FieldDefinition(name="url", selector="a", field_type=FieldType.URL)
+        assert extractor._extract_field(soup.select_one(".item"), field) == (
+            "https://www.timbirichi.com/x/y-z"
+        )
+
+    def test_extract_image_data_src(self, extractor: BeautifulSoupExtractor) -> None:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<img class="thumb lazy" data-src="https://x/img.jpg" src="blank.gif">',
+            "lxml",
+        )
+        field = FieldDefinition(name="imagen", selector="img.thumb", field_type=FieldType.IMAGE)
+        assert extractor._extract_field(soup, field) == "https://x/img.jpg"
+
+    def test_extract_image_style_background(self, extractor: BeautifulSoupExtractor) -> None:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<div class="cover" style="background-image: url(https://x/cover.jpg);"></div>',
+            "lxml",
+        )
+        field = FieldDefinition(name="imagen", selector=".cover", field_type=FieldType.IMAGE)
+        assert extractor._extract_field(soup, field) == "https://x/cover.jpg"
+
+    def test_extract_image_missing(self, extractor: BeautifulSoupExtractor) -> None:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup('<div class="item"></div>', "lxml")
+        field = FieldDefinition(
+            name="imagen", selector="img", field_type=FieldType.IMAGE, required=False
+        )
+        assert extractor._extract_field(soup.select_one(".item"), field) is None
+
+    def test_extract_url_from_self_container(
+        self, extractor: BeautifulSoupExtractor
+    ) -> None:
+        """El contenedor es el propio <a> → selector 'self' lee su href.
+
+        Patrón real de Timbirichi: container_selector='a.anuncio-list'
+        y el campo url usa selector 'self'.
+        """
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<a class="anuncio-list" href="https://www.timbirichi.com/moviles/-cable-iphone--kOBsAJhu">'
+            '<h5 class="anuncio-titulo">Cable iPhone</h5></a>',
+            "lxml",
+        )
+        container = soup.select_one("a.anuncio-list")
+        field = FieldDefinition(
+            name="url", selector="self", field_type=FieldType.URL
+        )
+        assert extractor._extract_field(container, field) == (
+            "https://www.timbirichi.com/moviles/-cable-iphone--kOBsAJhu"
+        )
+
+    def test_extract_url_from_at_self_alias(
+        self, extractor: BeautifulSoupExtractor
+    ) -> None:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<a class="item" href="/ruta/1">Titulo</a>', "lxml"
+        )
+        field = FieldDefinition(name="url", selector="@self", field_type=FieldType.URL)
+        assert extractor._extract_field(soup.select_one(".item"), field) == "/ruta/1"
+
+    def test_extract_required_field_missing_raises(
+        self, extractor: BeautifulSoupExtractor
+    ) -> None:
+        """Campo requerido ausente → error (default required=True)."""
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<div class="item"><h5 class="titulo">X</h5></div>', "lxml"
+        )
+        field = FieldDefinition(name="precio", selector="precio", field_type=FieldType.PRICE)
+        with pytest.raises(ValueError):
+            extractor._extract_field(soup.select_one(".item"), field)
+
+    def test_extract_optional_field_missing_returns_default(
+        self, extractor: BeautifulSoupExtractor
+    ) -> None:
+        """Campo no-requerido ausente → None (sin error).
+
+        Patrón real de Timbirichi: tiendas que no publican <precio>.
+        """
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(
+            '<div class="item"><h5 class="titulo">X</h5></div>', "lxml"
+        )
+        field = FieldDefinition(
+            name="precio", selector="precio", field_type=FieldType.PRICE, required=False
+        )
+        assert extractor._extract_field(soup.select_one(".item"), field) is None
+
     def test_convert_type_text(self, extractor: BeautifulSoupExtractor) -> None:
         result = extractor._convert_type("Hello", FieldType.TEXT)
         assert result == "Hello"

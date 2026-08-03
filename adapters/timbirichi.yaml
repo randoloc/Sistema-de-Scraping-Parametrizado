@@ -1,0 +1,49 @@
+# Adaptador: Timbirichi (timbirichi.com)
+# Clasificados cubanos de compra-venta — segunda plataforma más importante de Cuba.
+# HTML estático server-rendered → compatible con BeautifulSoupExtractor (BS4).
+#
+# VERIFICADO EN VIVO (2026-08-03):
+# - Búsqueda: GET https://www.timbirichi.com/buscar/pagina/{page}?q={query} → 200
+#   (el endpoint ?buscar= NO filtra resultados; el formulario real usa /buscar?q=)
+# - Paginación: /buscar/pagina/2?q=... (path-based, NO ?page=)
+# - Contenedor: a.anuncio-list  (30 resultados por página)
+# - Título: h5.anuncio-titulo
+# - Precio: <precio>$ 200</precio>  (tag HTML literal llamado 'precio')
+# - Imagen: img.thumbnail.lazy-load → data-src (src es blank.gif, se ignora)
+# - Enlace: el propio contenedor <a> → href (selector especial "self")
+# - Ubicación: li:has(.icon-location-pin)
+# - Descripción: div.info-anuncio p small
+name: timbirichi
+site: timbirichi.com
+vertical: general
+search_url: "https://www.timbirichi.com/buscar/pagina/{page}?q={query}"
+pagination: "/buscar/pagina/{page}?q={query}"
+container_selector: "a.anuncio-list"
+fields:
+  - name: titulo
+    selector: "h5.anuncio-titulo"
+    type: text
+  - name: precio
+    selector: "precio"
+    type: price
+    required: false
+  - name: descripcion
+    selector: "div.info-anuncio p small"
+    type: text
+  - name: url
+    selector: "self"
+    type: url
+  - name: imagen
+    selector: "img.thumbnail"
+    type: image
+  - name: ubicacion
+    selector: "li:has(.icon-location-pin)"
+    type: text
+
+canonical_map:
+  title: titulo
+  description: descripcion
+  price: precio
+  url: url
+  image_url: imagen
+  location: ubicacion

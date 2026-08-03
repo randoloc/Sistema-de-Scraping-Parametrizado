@@ -71,6 +71,7 @@ async def search(
                         if f.type in ("text", "price", "url", "number", "date", "image")
                         else FieldType.TEXT
                     ),
+                    required=f.required,
                 )
                 for f in adapter.fields
             )

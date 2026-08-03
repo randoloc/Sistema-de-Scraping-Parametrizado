@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from abc import abstractmethod
 from datetime import datetime, timezone
 from typing import Any
@@ -72,12 +73,59 @@ class BaseExtractor(ScraperEngine):
         return ExtractedItem(data=data, source_url=config.source, rank=0)
 
     def _extract_field(self, container: Any, field: FieldDefinition) -> Any:
+        # Para URL/IMAGE no basta con texto: hay que leer el atributo del elemento.
+        if field.field_type in (FieldType.URL, FieldType.IMAGE):
+            attr = self._extract_type_attr(container, field)
+            if attr is None:
+                if field.required:
+                    raise ValueError(f"Campo requerido '{field.name}' no encontrado")
+                return field.default
+            return attr
+
         raw = self._select_one(container, field.selector)
         if raw is None:
             if field.required:
                 raise ValueError(f"Campo requerido '{field.name}' no encontrado")
             return field.default
         return self._convert_type(raw, field.field_type)
+
+    def _extract_type_attr(self, container: Any, field: FieldDefinition) -> Any:
+        """Extrae el atributo correcto según el tipo (URL → href, IMAGE → src/data-src/background).
+
+        Soporta el selector especial ``self``: cuando el contenedor es el propio
+        elemento que lleva el atributo (ej: ``<a class="anuncio-list" href=...>``
+        como contenedor de resultados), el atributo se lee del contenedor.
+        """
+        if field.selector in ("self", "@self"):
+            elements = [container]
+        else:
+            elements = self._select_all(container, field.selector)
+        if not elements:
+            return None
+        element = elements[0]
+
+        if field.field_type == FieldType.URL:
+            for attr in ("href", "data-href", "data-url"):
+                value = element.get(attr)
+                if value:
+                    return str(value)
+            # Fallback: si el elemento no es un <a>, intentar texto que parezca URL
+            text = element.get_text(strip=True) if hasattr(element, "get_text") else ""
+            if text.startswith(("http://", "https://", "/")):
+                return text
+            return None
+
+        # IMAGE
+        for attr in ("data-src", "data-original", "data-lazy-src", "src"):
+            value = element.get(attr)
+            if value and not str(value).endswith(("blank.gif", "blank.png", "default.jpg", "default.png", "no-image.jpg", "noimage.jpg")):
+                return str(value)
+        # background-image via style
+        style = element.get("style") or ""
+        match = re.search(r"background-image\s*:\s*url\(['\"]?(.*?)['\"]?\)", style)
+        if match:
+            return match.group(1).strip()
+        return None
 
     def _convert_type(self, value: Any, field_type: FieldType) -> Any:
         text = str(value).strip()

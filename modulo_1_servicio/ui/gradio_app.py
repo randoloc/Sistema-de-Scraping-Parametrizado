@@ -6,6 +6,7 @@ y obtén resultados en tarjetas visuales con precio, fotos, contacto y más.
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import os
@@ -36,6 +37,28 @@ _adapter_loader.load_all()
 _orchestrator = Orchestrator()
 _orchestrator.register_engine("web_page", BeautifulSoupExtractor())
 _normalizer = ResultNormalizer()
+
+# Cache de clases de adaptadores Python custom (ej: revolico_adapter.RevolicoAdapter)
+_python_adapter_classes: dict[str, type] = {}
+
+
+def _get_python_adapter_class(python_adapter_path: str) -> type:
+    """Importa dinámicamente y cachea una clase de adaptador Python custom."""
+    if python_adapter_path in _python_adapter_classes:
+        return _python_adapter_classes[python_adapter_path]
+
+    parts = python_adapter_path.rsplit(".", 1)
+    if len(parts) != 2:
+        raise ValueError(
+            f"Formato inválido: '{python_adapter_path}'. Esperado: 'module.ClassName'"
+        )
+    module_name, class_name = parts
+    full_module = f"modulo_1_servicio.scraping.adapters.{module_name}"
+    module = importlib.import_module(full_module)
+    cls = getattr(module, class_name)
+    _python_adapter_classes[python_adapter_path] = cls
+    logger.info("Adaptador Python cargado: %s → %s.%s", python_adapter_path, full_module, class_name)
+    return cls
 
 # ---------------------------------------------------------------------------
 # CSS moderno para las tarjetas
@@ -299,7 +322,8 @@ async def search_action(
 
     query = query.strip()
 
-    # ─── Modo demo ───
+    # ─── Modo demo EXPLÍCITO (solo si DEMO_MODE está activo en el entorno) ───
+    # Por defecto NO está activo. Se usa únicamente para desarrollo sin internet.
     if os.environ.get("DEMO_MODE") == "1":
         return _generate_demo_results(query, category)
 
@@ -312,6 +336,7 @@ async def search_action(
 
     progress(0.0, desc="Buscando...")
     all_items: list[dict] = []
+    site_errors: list[str] = []
     total_rank = 0
 
     for idx, adapter in enumerate(matching):
@@ -320,6 +345,32 @@ async def search_action(
             desc=f"Consultando {adapter.name}...",
         )
         try:
+            # ── RUTA: Adaptador Python custom (ej: Revolico Next.js) ──
+            if adapter.python_adapter:
+                cls = _get_python_adapter_class(adapter.python_adapter)
+                instance = cls()
+                try:
+                    canonical_items = await instance.search(query, page=1)
+                finally:
+                    await instance.close()
+
+                for item in canonical_items:
+                    all_items.append(
+                        _build_item(
+                            rank=total_rank + 1,
+                            title=item.title or "(Sin título)",
+                            description=(item.description or "")[:300],
+                            price=item.price,
+                            site=item.source_site,
+                            url=item.url or "",
+                            image=item.image_url or "",
+                            address=item.location or "",
+                        )
+                    )
+                total_rank += len(canonical_items)
+                continue
+
+            # ── RUTA: YAML estándar (BS4 + selectores) ──
             search_url = adapter.search_url
             if "{query}" in search_url:
                 search_url = search_url.replace("{query}", quote(query))
@@ -336,6 +387,7 @@ async def search_action(
                         in ("text", "price", "url", "number", "date", "image")
                         else FieldType.TEXT
                     ),
+                    required=f.required,
                 )
                 for f in adapter.fields
             )
@@ -392,17 +444,27 @@ async def search_action(
 
         except Exception as exc:
             logger.error("Error en %s: %s", adapter.name, exc)
+            site_errors.append(f"❌ **{adapter.name}**: {exc}")
 
     progress(1.0, desc="Listo")
 
-    # ─── Fallback a demo ───
+    # ─── Sin fallback a demo: se reporta el resultado REAL y los errores ───
     if not all_items:
-        demo = _generate_demo_results(query, category)
-        if demo:
-            return demo
+        errors_section = ""
+        if site_errors:
+            errors_section = "\n\n### Detalles por sitio\n" + "\n".join(site_errors)
+        msg = (
+            f"😕 No se obtuvieron resultados para **'{query}'** en **{category}**. "
+            f"Los sitios no respondieron o están bloqueando el acceso."
+            f"{errors_section}"
+        )
         return (
-            f"😕 No se encontraron resultados para **'{query}'** en **{category}**.",
-            _empty_state_html("Sin resultados", "Intenta con otros términos o categoría."),
+            msg,
+            _empty_state_html(
+                "Sin resultados",
+                "Los sitios no devolvoun datos en este momento. "
+                "Puede ser bloqueo anti-bot o falta de resultados reales.",
+            ),
             "[]",
         )
 
@@ -819,10 +881,116 @@ def build_app() -> gr.Blocks:
                         wrap=True,
                     )
 
-                    # ═══════════════════════════════════════════════════
-                    # PESTAÑA 2: AYUDA
-                    # ═══════════════════════════════════════════════════
-                    with gr.Tab("❓ Ayuda"):
+            # ═══════════════════════════════════════════════════
+            # PESTAÑA 2: AGREGAR SITIO
+            # ═══════════════════════════════════════════════════
+            with gr.Tab("➕ Agregar sitio"):
+                gr.HTML(
+                    """
+                    <div style="max-width:760px;margin:0 auto;padding:12px 0">
+                        <h2 style="color:#1e3a5f;font-weight:700">➕ Agregar un nuevo sitio</h2>
+                        <p style="color:#57534e">
+                            Registra un clasificado cubano nuevo: el sistema verifica
+                            automáticamente si es accesible (DNS + HTTP) antes de integrarlo.
+                        </p>
+                    </div>
+                    """
+                )
+                with gr.Row(equal_height=True):
+                    new_site_name = gr.Textbox(
+                        label="Nombre (identificador)",
+                        placeholder="ej: itencel",
+                        scale=1,
+                    )
+                    new_site_domain = gr.Textbox(
+                        label="Dominio",
+                        placeholder="ej: itencel.com",
+                        scale=1,
+                    )
+                    new_site_vertical = gr.Textbox(
+                        label="Categoría",
+                        placeholder="ej: general, cars, jobs",
+                        value="general",
+                        scale=1,
+                    )
+
+                new_site_url = gr.Textbox(
+                    label="URL de búsqueda (usa {query} para el término)",
+                    placeholder="ej: https://itencel.com/?q={query}",
+                )
+
+                verify_btn = gr.Button(
+                    "🔍 Verificar acceso",
+                    variant="secondary",
+                )
+                verify_output = gr.Markdown(value="")
+
+                gr.HTML(
+                    """
+                    <div style="max-width:760px;margin:16px auto 0">
+                        <h3 style="color:#1e3a5f;font-weight:600;font-size:1.05rem">
+                            Selectores de resultados
+                        </h3>
+                        <p style="color:#78716c;font-size:0.9rem">
+                            Opcionales — completa los que conozcas. Si dejas vacíos,
+                            se genera un YAML base para afinar luego.
+                        </p>
+                    </div>
+                    """
+                )
+                with gr.Row(equal_height=True):
+                    new_site_container = gr.Textbox(
+                        label="Contenedor de resultados (CSS)",
+                        placeholder='ej: a.anuncio-list, li.card',
+                        scale=2,
+                    )
+                    new_site_title = gr.Textbox(
+                        label="Selector título",
+                        placeholder="ej: h5.anuncio-titulo",
+                        scale=1,
+                    )
+                    new_site_price = gr.Textbox(
+                        label="Selector precio",
+                        placeholder="ej: .price (opcional)",
+                        scale=1,
+                    )
+                    new_site_url_sel = gr.Textbox(
+                        label="Selector enlace",
+                        placeholder="ej: a (o 'self' si es el contenedor)",
+                        scale=1,
+                    )
+
+                save_btn = gr.Button(
+                    "💾 Guardar adaptador",
+                    variant="primary",
+                )
+                save_output = gr.Markdown(value="")
+
+                verify_btn.click(
+                    fn=verify_site_action,
+                    inputs=[new_site_domain],
+                    outputs=[verify_output],
+                )
+
+                save_btn.click(
+                    fn=save_adapter_action,
+                    inputs=[
+                        new_site_name,
+                        new_site_domain,
+                        new_site_vertical,
+                        new_site_url,
+                        new_site_container,
+                        new_site_title,
+                        new_site_price,
+                        new_site_url_sel,
+                    ],
+                    outputs=[save_output],
+                )
+
+            # ═══════════════════════════════════════════════════
+            # PESTAÑA 3: AYUDA
+            # ═══════════════════════════════════════════════════
+            with gr.Tab("❓ Ayuda"):
                         gr.HTML(
                             """
                             <div style="max-width:700px;margin:0 auto;padding:20px 0">
@@ -871,7 +1039,7 @@ def build_app() -> gr.Blocks:
                                 </div>
                                 <div style="background:#f0ede8;border-radius:12px;padding:16px 20px;margin:12px 0;border:1px solid #e8e4de">
                                     <p style="margin:0"><strong style="color:#1e3a5f">🔹 ¿Cómo agrego más sitios?</strong><br>
-                                    <span style="color:#57534e">Contacta al administrador del sistema.</span></p>
+                                    <span style="color:#57534e">Usa la pestaña <strong>➕ Agregar sitio</strong>: escribe el dominio, verifica si es accesible y guarda el adaptador. El sistema comprueba DNS + HTTP automáticamente.</span></p>
                                 </div>
                             </div>
                             """
@@ -885,3 +1053,132 @@ def build_app() -> gr.Blocks:
 # ---------------------------------------------------------------------------
 def _get_verticals() -> list[str]:
     return sorted({a.vertical for a in _adapter_loader.get_all()})
+
+
+# ---------------------------------------------------------------------------
+# Gestión de sitios: verificación de accesibilidad + guardado de adaptadores
+# ---------------------------------------------------------------------------
+from modulo_1_servicio.scraping.site_verifier import (  # noqa: E402
+    build_adapter_yaml,
+    check_accessibility,
+)
+
+# Último resultado de verificación (para habilitar el botón Guardar)
+_verification_state: dict[str, Any] = {}
+
+
+async def verify_site_action(domain: str) -> str:
+    """Verifica la accesibilidad de un dominio desde la UI."""
+    if not domain or not domain.strip():
+        return "⚠️ Escribe un dominio para verificar. Ej: `itencel.com`"
+
+    result = await check_accessibility(domain.strip())
+    _verification_state["last"] = result
+
+    ips = ", ".join(result.get("ips", [])) or "—"
+    status = result.get("http_status") or "—"
+    time_ms = result.get("response_time_ms") or "—"
+    size = result.get("content_length") or "—"
+    spa = "🧩 Sí (SPA — requiere adaptador Python)" if result.get("likely_spa") else "No"
+
+    header_emoji = "✅" if result["accessible"] else "❌"
+    return f"""
+{header_emoji} **{result['domain']}** — {result['message']}
+
+| Chequeo | Resultado |
+|---|---|
+| 🌐 DNS | {'✅ resuelve' if result['dns_ok'] else '❌ falla'} `{ips}` |
+| 🔌 HTTP | {'✅ responde' if result['http_ok'] else '❌ no responde'} (status {status}) |
+| ⏱️ Tiempo | {time_ms} ms |
+| 📦 Contenido | {size} bytes |
+| 🧩 SPA | {spa} |
+"""
+
+
+def save_adapter_action(
+    name: str,
+    site: str,
+    vertical: str,
+    search_url: str,
+    container_selector: str,
+    title_selector: str,
+    price_selector: str,
+    url_selector: str,
+) -> str:
+    """Genera, valida y guarda el YAML de un adaptador nuevo.
+
+    Flujo: el usuario primero verifica accesibilidad y luego completa
+    los selectores básicos (puede afinarlos luego editando el YAML).
+    """
+    name = (name or "").strip().lower()
+    site = (site or "").strip()
+    vertical = (vertical or "").strip() or "general"
+    search_url = (search_url or "").strip()
+    container_selector = (container_selector or "").strip()
+    title_selector = (title_selector or "").strip() or "h2"
+    price_selector = (price_selector or "").strip()
+    url_selector = (url_selector or "").strip()
+
+    # ── Validaciones ──
+    if not name or not site or not search_url:
+        return "⚠️ **Nombre**, **dominio** y **URL de búsqueda** son obligatorios."
+
+    if not name.replace("-", "").replace("_", "").isalnum():
+        return "⚠️ El **nombre** solo puede contener letras, números, `-` y `_`."
+
+    if "{query}" not in search_url:
+        return "⚠️ La **URL de búsqueda** debe contener `{query}` (se reemplaza con el término buscado)."
+
+    if _verification_state.get("last", {}).get("domain") != _normalize_domain(site):
+        return (
+            "⚠️ Verifica primero la **accesibilidad** del dominio "
+            "(botón '🔍 Verificar acceso') antes de guardar."
+        )
+
+    fields = [{"name": "titulo", "selector": title_selector, "type": "text"}]
+    if price_selector:
+        fields.append({"name": "precio", "selector": price_selector, "type": "price", "required": False})
+    if url_selector:
+        fields.append({"name": "url", "selector": url_selector, "type": "url"})
+
+    yaml_text = build_adapter_yaml(
+        name=name,
+        site=site,
+        vertical=vertical,
+        search_url=search_url,
+        container_selector=container_selector,
+        fields=fields,
+    )
+
+    # ── Guardar en adapters/ ──
+    adapter_path = _ADAPTERS_DIR / f"{name}.yaml"
+    try:
+        adapter_path.write_text(yaml_text, encoding="utf-8")
+    except OSError as exc:
+        return f"❌ Error escribiendo `{adapter_path}`: {exc}"
+
+    # ── Recargar el loader para que el nuevo sitio se use en búsquedas ──
+    _adapter_loader.load_all()
+
+    return (
+        f"✅ **Adaptador `{name}` guardado** en `adapters/{name}.yaml`\n\n"
+        f"Ya está disponible en la pestaña **Buscar** (categoría `{vertical}`).\n\n"
+        f"💡 Puedes afinar los selectores editando el archivo YAML si los "
+        f"resultados no son exactos."
+    )
+
+
+def _normalize_domain(value: str) -> str:
+    """Extrae el host de un dominio o URL (ej: 'https://x.com/y' → 'x.com')."""
+    from urllib.parse import urlparse
+
+    v = value.strip()
+    if "://" not in v:
+        v = "https://" + v
+    return urlparse(v).netloc.split(":")[0]
+
+
+from pathlib import Path  # noqa: E402
+
+# Directorio donde se guardan los adaptadores YAML (raíz del proyecto / adapters)
+_ADAPTERS_DIR = Path(__file__).parent.parent.parent / "adapters"

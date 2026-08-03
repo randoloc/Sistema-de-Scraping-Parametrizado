@@ -1,37 +1,14 @@
-# Adaptador: Revolico (revolico.cu)
+# Adaptador: Revolico (revolico.com)
 # Clasificados cubanos — principal plataforma de compra-venta en Cuba
 # Verticales: inmobiliaria, autos, empleos, electrónica, servicios
+#
+# NOTA: Revolico es una SPA Next.js. El HTML se renderiza con JavaScript,
+# por lo que los selectores CSS de BS4 NO funcionan. Se usa un adaptador
+# Python custom que consulta el endpoint JSON /_next/data/{buildId}/search.json
 name: revolico
-site: revolico.cu
+site: revolico.com
 vertical: general
-search_url: "https://www.revolico.cu/search/all/{query}"
-container_selector: "article.ad, div.list-item, tr.row"
-pagination: "?page={page}"
-fields:
-  - name: titulo
-    selector: "h2 a, .title a, .ad-title"
-    type: text
-  - name: descripcion
-    selector: ".description, .ad-description, p.desc"
-    type: text
-  - name: precio
-    selector: ".price, .ad-price, .precio"
-    type: price
-  - name: ubicacion
-    selector: ".location, .ad-location, .ubicacion"
-    type: text
-  - name: fecha
-    selector: ".date, .ad-date, small.date"
-    type: text
-  - name: url
-    selector: "h2 a, .title a, a.ad-link"
-    type: url
-  - name: imagen
-    selector: "img.thumbnail, .ad-image img, img"
-    type: image
-
-canonical_map:
-  title: titulo
-  description: descripcion
-  price: precio
-  url: url
+search_url: "https://www.revolico.com/search?q={query}"
+python_adapter: "revolico_adapter.RevolicoAdapter"
+container_selector: null
+fields: []

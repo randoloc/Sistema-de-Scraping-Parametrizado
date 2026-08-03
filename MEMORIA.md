@@ -5,7 +5,7 @@
 
 ---
 
-## Última actualización: 2026-08-03 (Sesión 8)
+## Última actualización: 2026-08-03 (Sesión 9)
 
 ---
 
@@ -32,6 +32,53 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 ---
 
 ## 📋 Historial de Sesiones
+
+### Sesión 9 — 2026-08-03: Datos reales (Timbirichi + Itencel) + Feature UI "Agregar sitio"
+
+**Contexto**: Continuando la petición del usuario de **desactivar el modo demo y buscar datos reales de los sitios reales**. Revolico fue reescrito en la sesión previa (adapter Python con Apollo SSR + cache de buildID). Esta sesión se centró en: (1) razonar Timbirichi contra el HTML real hasta que filtrara correctamente, (2) crear el adaptador de Itencel, (3) implementar la feature pedida de **agregar sitios nuevos desde la UI con verificación automática de accesibilidad (DNS + HTTP)**.
+
+**Qué se hizo**:
+
+1. ✅ **Timbirichi razonado e implementado** (`adapters/timbirichi.yaml` reescrito):
+   - El endpoint `?buscar=` NO filtra (devuelve homepage con anuncios random). El formulario real es `action=/buscar` con `input name=q` → URL correcta: `/buscar/pagina/{page}?q={query}`
+   - Paginación path-based: `/buscar/pagina/2?q=...` (`&page=2` NO cambia resultados, verificado)
+   - Contenedor `a.anuncio-list` (30/página) — el contenedor es el propio `<a>`, por lo que la URL se lee del href del contenedor
+   - Precio: tag literal `<precio>$ 200</precio>`; imagen: `img.thumbnail.lazy-load` con `data-src` (src es blank.gif, ignorada)
+   - 7 anuncios sin precio en "iphone" son tiendas (MultiTech, etc.) que genuinamente no publican precio → campo `required: false`
+2. ✅ **Fix extractor base** (`extractors/base.py`): soporte de selector especial `self`/`@self` en `_extract_type_attr` (lee atributo del contenedor mismo — necesario porque bs4 4.14.3 no soporta `:scope`). También se amplió la lista de imágenes por defecto a ignorar (`default.jpg`, `noimage.jpg`, etc. — Itencel usa `web/img/default.jpg`)
+3. ✅ **Campo `required` en el modelo**: `AdapterField.required: bool = True` en `adapters/models.py`, propagado a las 4 construcciones de FieldDefinition (`search_service.py`, `routes_search.py`, `gradio_app.py`, `telegram_bot.py`)
+4. ✅ **Itencel implementado** (`adapters/itencel.yaml` nuevo):
+   - WordPress con tema RTCL (Classified Listing); formulario real `action=/all-ads/` `input name=q`
+   - URL: `/all-ads/page/{page}/?q={query}` — 1,109 resultados para "iphone", 50/página
+   - Estructura: `.rtcl-listing-item`, `h3.rtin-title`, `.rtcl-price-amount` ("25 USD"), `img.rtcl-thumbnail`, `a.rtin-thumb-inner`, `li:has(.fa-map-marker)`
+   - End-to-end: 50 items, 50/50 URL, 50/50 imagen, 46/50 precio, **50/50 ubicación**
+5. ✅ **Verificador de accesibilidad** (`scraping/site_verifier.py` nuevo): `check_accessibility(domain)` → DNS (socket.getaddrinfo) + HTTP (httpx); detecta SPA vacío (<2KB), bloqueo anti-bot (403/429), DNS caído, timeout. Mensajes en español. Además `build_adapter_yaml(...)` genera el YAML del adaptador nuevo
+6. ✅ **Feature UI "➕ Agregar sitio"** (`ui/gradio_app.py`):
+   - Pestaña nueva con inputs: nombre, dominio, categoría, URL de búsqueda, selectores (contenedor/título/precio/enlace)
+   - Botón "🔍 Verificar acceso" → `verify_site_action()` muestra tabla DNS/HTTP/tiempo/contenido/SPA
+   - Botón "💾 Guardar adaptador" → `save_adapter_action()` valida (formato nombre, `{query}` en URL, dominio verificado antes), escribe `adapters/{name}.yaml` y recarga el loader
+   - **Bug corregido**: la pestaña "❓ Ayuda" estaba anidada dentro del Accordion "Sitios disponibles" → ahora es pestaña independiente. FAQ actualizado (explica la nueva pestaña)
+7. ✅ **Tests: 194/194** (antes 183): +4 en `test_extractor.py` (self/@self, required), +3 en `test_adapter_loader.py` (required), **+11 en `test_site_verifier.py`** (DNS/HTTP/SPA/blocked/timeout/YAML)
+
+**Verificación en vivo**: prueba `_test_ui_flow.py` confirmó `verify_site_action("itencel.com")` muestra tabla correcta, `save_adapter_action` bloquea dominios no verificados, y el loader recarga y ve el adaptador nuevo.
+
+**Archivos**:
+- `adapters/timbirichi.yaml` — reescrito (estructura real verificada)
+- `adapters/itencel.yaml` — nuevo
+- `modulo_1_servicio/scraping/site_verifier.py` — nuevo (verificación accesibilidad + build_adapter_yaml)
+- `modulo_1_servicio/scraping/extractors/base.py` — selector self/@self + imágenes por defecto
+- `modulo_1_servicio/scraping/adapters/models.py` — campo `required`
+- `modulo_1_servicio/ui/gradio_app.py` — pestaña Agregar sitio + fix pestaña Ayuda + required
+- `modulo_1_servicio/bot/search_service.py`, `api/routes_search.py`, `bot/telegram_bot.py` — propagación required
+- `tests/modulo_1/test_extractor.py`, `test_adapter_loader.py`, `test_site_verifier.py` — 194/194 verdes
+
+**Pendiente**:
+- [ ] Commit + push a GitHub y HF Spaces de todo el progreso (ver sección WIP abajo)
+- [ ] Probar búsqueda multi-sitio desde la UI (timbirichi + itencel + revolico en una búsqueda)
+- [ ] Sitios accesibles sin adaptador: `qvaventas.com` (141KB), `cubisima.com` (41KB), `anuncioscuba.com` (353KB); SPA que requieren adapter Python: `alaventa.com`, `apululu.com`
+- [ ] Paginación multi-página en la UI (hoy siempre page=1; `max_pages` del SearchRequest no se usa en UI)
+
+---
 
 ### Sesión 8 — 2026-08-03: Fix crítico deploy HF — UI NovaSearch ahora visible en producción
 
@@ -218,11 +265,13 @@ PySide6/QML se reemplaza por Gradio web (accesible desde cualquier navegador).
 
 ## 🐛 Bugs Conocidos
 
-| # | Descripción | Archivo | Prioridad |
-|---|-------------|---------|-----------|
-| 1 | `test_circular_rotation` flaky — `UARotator` arranca con índice aleatorio, el test asume índice 0 | `test_anti_scraping.py:38` | 🟡 Medio |
-| 2 | `_to_float` no maneja coma como decimal europea (`€ 50,00` → 5000.0) | `normalizer.py:73` | 🟢 Fácil |
-| 3 | `_to_float` no limpia texto residual (`$ 25,000 MXN` → None) | `normalizer.py:73` | 🟢 Fácil |
+| # | Descripción | Estado |
+|---|-------------|--------|
+| 1 | `test_circular_rotation` flaky — `UARotator` arranca con índice aleatorio | ✅ Resuelto (Sesión 6) |
+| 2 | `_to_float` no manejaba coma decimal europea (`€ 50,00`) | ✅ Resuelto (Sesión 6) |
+| 3 | `_to_float` no limpiaba texto residual (`$ 25,000 MXN`) | ✅ Resuelto (Sesión 6) |
+| 4 | Timbirichi: `?buscar=` no filtraba (devuelve homepage) | ✅ Resuelto (Sesión 9) — endpoint real `/buscar/pagina/{page}?q=` |
+| 5 | Revolico: 403 anti-bot desde red local en Cuba | ⚠️ Comportamiento esperado — funciona desde datacenters (HF) |
 
 ---
 
@@ -237,20 +286,25 @@ PySide6/QML se reemplaza por Gradio web (accesible desde cualquier navegador).
 
 ---
 
-## 🚧 WIP: Cambios sin commitear (Fase 2 parcial)
+## 🚧 WIP: Cambios sin commitear (al cierre de Sesión 9)
 
 **Nuevos:**
-- `modulo_1_servicio/api/routes_search.py` — Endpoint `POST /api/search`
-- `modulo_1_servicio/scraping/normalizer.py` — ResultNormalizer + CanonicalItem
-- `tests/modulo_1/test_normalizer.py` — 19 tests (2 fallan por bugs en `_to_float`)
+- `adapters/timbirichi.yaml` — adaptador real Timbirichi (estructura verificada en vivo)
+- `adapters/itencel.yaml` — adaptador real Itencel (WordPress RTCL)
+- `modulo_1_servicio/scraping/site_verifier.py` — verificación accesibilidad DNS+HTTP + build_adapter_yaml
+- `tests/modulo_1/test_site_verifier.py` — 11 tests
 
-**Modificados:**
-- `adapters/example_httpbin.yaml` — +canonical_map
-- `modulo_1_servicio/main.py` — +search_router
-- `modulo_1_servicio/scraping/adapters/models.py` — +canonical_map field
-- `modulo_2_admin/core/client.py` — +search methods
-- `modulo_2_admin/ui/main.py` — +search bridge
-- `modulo_2_admin/ui/qml/main.qml` — +UI búsqueda
+**Modificados (Sesión 8-9):**
+- `adapters/revolico.yaml` — site .com + python_adapter + fields []
+- `modulo_1_servicio/scraping/adapters/revolico_adapter.py` — Apollo SSR + buildID cache
+- `modulo_1_servicio/scraping/extractors/base.py` — selector self/@self + imágenes por defecto
+- `modulo_1_servicio/scraping/adapters/models.py` — campo `required`
+- `modulo_1_servicio/ui/gradio_app.py` — pestaña "➕ Agregar sitio" + fix pestaña Ayuda + required
+- `modulo_1_servicio/bot/search_service.py`, `api/routes_search.py`, `bot/telegram_bot.py` — required
+- `tests/modulo_1/test_extractor.py`, `test_adapter_loader.py`, `test_revolico_adapter.py`
+- `.gitignore` — `.cache/` de adaptadores dinámicos
+
+**Sin commitear → próximos pasos: commit + push a GitHub (origin) y HF (hf-spaces)**
 
 ---
 

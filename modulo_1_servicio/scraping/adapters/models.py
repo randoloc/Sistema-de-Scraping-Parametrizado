@@ -13,6 +13,10 @@ class AdapterField(BaseModel):
     name: str = Field(description="Nombre del campo en el resultado")
     selector: str = Field(description="Selector CSS para localizar el elemento")
     type: str = Field(default="text", description="Tipo de dato: text|price|url|number|date|image")
+    required: bool = Field(
+        default=True,
+        description="Si True, la ausencia del campo marca error; si False, queda None",
+    )
     transform: Optional[str] = Field(default=None, description="Transformación opcional del valor")
 
 

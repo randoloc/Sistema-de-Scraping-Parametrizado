@@ -23,6 +23,7 @@ def _mock_response(
     text: str = "",
     json_data: dict | None = None,
     status: int = 200,
+    content_type: str = "application/json",
 ) -> Mock:
     """Crea un Mock con la interfaz de httpx.Response.
 
@@ -30,10 +31,13 @@ def _mock_response(
         text: HTML/text response body.
         json_data: Si se provee, ``.json()`` retorna esto.
         status: Código HTTP.
+        content_type: Valor del header Content-Type (distingue JSON puro
+            de HTML SSR — Revolico devuelve HTML en search.json).
     """
     resp = Mock(spec=httpx.Response)
     resp.text = text
     resp.status_code = status
+    resp.headers = {"content-type": content_type}
 
     if json_data is not None:
         resp.json = Mock(return_value=json_data)
@@ -55,16 +59,28 @@ _RealAsyncClient = httpx.AsyncClient
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
     """Patcha httpx.AsyncClient para que devuelva un mock en lugar de hacer
-    requests reales.
+    requests reales, y desactiva el cache persistente de buildID.
 
     Uso:
         mock_client.get.return_value = _mock_response(text="...")
         adapter = RevolicoAdapter()
         await adapter.extract_build_id()  # usa mock_client
     """
-    with patch(
-        "modulo_1_servicio.scraping.adapters.revolico_adapter.httpx.AsyncClient"
-    ) as mock_cls:
+    with (
+        patch(
+            "modulo_1_servicio.scraping.adapters.revolico_adapter.httpx.AsyncClient"
+        ) as mock_cls,
+        patch.object(
+            RevolicoAdapter,
+            "_load_build_id_cache",
+            return_value=None,
+        ),
+        patch.object(
+            RevolicoAdapter,
+            "_save_build_id_cache",
+            return_value=None,
+        ),
+    ):
         client = AsyncMock(spec=_RealAsyncClient)
         mock_cls.return_value = client
         yield client
@@ -411,6 +427,160 @@ class TestSearch:
         assert items[0].title == "From results key"
 
 
+# ── Tests: formato real actual (HTML SSR + Apollo GraphQL) ───────────
+
+
+class TestApolloSSR:
+    """El endpoint search.json ahora devuelve HTML SSR con __APOLLO_STATE__."""
+
+    HOMEPAGE = """<script id="__NEXT_DATA__" type="application/json">
+{"buildId": "real-build-123"}
+</script>"""
+
+    # HTML SSR realista tal como lo devuelve Revolico en /_next/data/.../search.json
+    SSR_HTML = """<!DOCTYPE html><html lang="es"><head>
+<title>Buscando 'iphone' Cuba - Revolico</title>
+</head><body>
+<script id="__NEXT_DATA__" type="application/json">
+{
+  "buildId": "real-build-123",
+  "props": {
+    "pageProps": {
+      "ssrCountry": "CU",
+      "promotedAdsOrder": {"top": [1, 0], "bottom": []},
+      "__APOLLO_STATE__": {
+        "AdType:56601946": {
+          "__typename": "AdType",
+          "id": "56601946",
+          "title": "iPhone 15 Pro Max",
+          "price": 1200,
+          "currency": "USD",
+          "permalink": "/item/iphone-15-pro-max-56601946",
+          "imagesCount": 2,
+          "updatedOnToOrder": "2026-08-02T14:25:33.250Z",
+          "isPromoted": true,
+          "provinceId": "1",
+          "municipalityId": "37",
+          "mainImage": {"__typename": "ImageType", "gcsKey": "pics/a3285da6c4cefc658e74b09d195721e7adaefe5456618bf331256b4889e6f224"},
+          "viewCount": 10,
+          "contactInfo": "PHONE"
+        },
+        "AdType:56601947": {
+          "__typename": "AdType",
+          "id": "56601947",
+          "title": "Samsung Galaxy S24",
+          "price": 800.5,
+          "currency": "USD",
+          "permalink": "/item/samsung-galaxy-s24-56601947",
+          "updatedOnToOrder": "2026-08-01T10:00:00.000Z",
+          "isPromoted": false,
+          "provinceId": "4",
+          "municipalityId": "5",
+          "mainImage": null,
+          "viewCount": 3
+        },
+        "ProvinceType:1": {"__typename": "ProvinceType", "id": "1", "name": "La Habana", "slug": "la-habana"},
+        "ProvinceType:4": {"__typename": "ProvinceType", "id": "4", "name": "Pinar del R\u00edo", "slug": "pinar-del-rio"},
+        "MunicipalityType:37": {"__typename": "MunicipalityType", "id": "37", "name": "Plaza de la Revoluci\u00f3n"},
+        "MunicipalityType:5": {"__typename": "MunicipalityType", "id": "5", "name": "Mantua"}
+      }
+    }
+  }
+}
+</script>
+</body></html>"""
+
+    async def test_search_parses_apollo_ssr(
+        self, mock_http_client: AsyncMock
+    ) -> None:
+        """search() con HTML SSR extrae los AdType del __APOLLO_STATE__."""
+        mock_http_client.get.return_value = _mock_response(text=self.HOMEPAGE)
+        adapter = RevolicoAdapter()
+        await adapter.extract_build_id()
+        mock_http_client.get.reset_mock()
+
+        mock_http_client.get.return_value = _mock_response(
+            text=self.SSR_HTML,
+            content_type="text/html",
+        )
+
+        items = await adapter.search("iphone")
+
+        assert len(items) == 2
+        assert all(isinstance(i, CanonicalItem) for i in items)
+
+        first = items[0]
+        assert first.title == "iPhone 15 Pro Max"
+        assert first.price == 1200.0
+        assert first.currency == "USD"
+        assert first.url == "https://www.revolico.com/item/iphone-15-pro-max-56601946"
+        assert first.image_url == (
+            "https://pic.revolico.com/pics/"
+            "a3285da6c4cefc658e74b09d195721e7adaefe5456618bf331256b4889e6f224"
+            "_item_photo_desktop.jpg"
+        )
+        assert first.location == "Plaza de la Revolución, La Habana"
+        assert first.date == "2026-08-02T14:25:33.250Z"
+
+        second = items[1]
+        assert second.title == "Samsung Galaxy S24"
+        assert second.price == 800.5
+        assert second.location == "Mantua, Pinar del Río"
+        assert second.image_url is None
+
+    async def test_search_apollo_item_without_main_image(
+        self, mock_http_client: AsyncMock
+    ) -> None:
+        """Anuncio Apollo sin mainImage no rompe y devuelve image_url None."""
+        mock_http_client.get.return_value = _mock_response(text=self.HOMEPAGE)
+        adapter = RevolicoAdapter()
+        await adapter.extract_build_id()
+        mock_http_client.get.reset_mock()
+
+        html = self.SSR_HTML.replace(
+            '"mainImage": null', '"mainImage": {"__typename": "ImageType", "gcsKey": null}'
+        )
+        mock_http_client.get.return_value = _mock_response(
+            text=html, content_type="text/html"
+        )
+
+        items = await adapter.search("iphone")
+        assert items[1].image_url is None
+
+    async def test_search_html_without_next_data_raises(
+        self, mock_http_client: AsyncMock
+    ) -> None:
+        """HTML SSR sin __NEXT_DATA__ (posible bloqueo) lanza SearchResponseError."""
+        mock_http_client.get.return_value = _mock_response(text=self.HOMEPAGE)
+        adapter = RevolicoAdapter()
+        await adapter.extract_build_id()
+        mock_http_client.get.reset_mock()
+
+        mock_http_client.get.return_value = _mock_response(
+            text="<html><body>Just a moment...</body></html>",
+            content_type="text/html",
+        )
+
+        with pytest.raises(SearchResponseError, match="__NEXT_DATA__"):
+            await adapter.search("iphone")
+
+    async def test_build_id_fallback_to_search_page(
+        self, mock_http_client: AsyncMock
+    ) -> None:
+        """Si la homepage da 403, extrae el buildID desde /search?q=."""
+        homepage = _mock_response(status=403)
+        search_page = _mock_response(text=self.HOMEPAGE)
+
+        mock_http_client.get.side_effect = [homepage, search_page]
+
+        adapter = RevolicoAdapter()
+        build_id = await adapter.extract_build_id()
+
+        assert build_id == "real-build-123"
+        # 2 llamadas: homepage (falla) + /search?q= (ok)
+        assert mock_http_client.get.await_count == 2
+
+
 # ── Tests: _parse_item (no requiere mocking de HTTP) ─────────────────
 
 
@@ -470,10 +640,22 @@ class TestParseItem:
         assert item.url == "https://www.revolico.com/items/abc"
 
     def test_url_from_id(self) -> None:
-        """URL construida desde ``id`` cuando no hay ``url`` ni ``slug``."""
+        """URL construida desde ``id`` cuando no hay ``url``/``slug``/``permalink``.
+
+        Revolico usa ``/item/{id}`` como fallback.
+        """
         item = self._parse({"title": "Item", "id": "999"})
         assert item is not None
-        assert item.url == "https://www.revolico.com/anuncio/999"
+        assert item.url == "https://www.revolico.com/item/999"
+
+    def test_url_from_permalink_modern(self) -> None:
+        """URL desde ``permalink`` (formato Apollo real, ya incluye slug+id)."""
+        item = self._parse({
+            "title": "iPhone",
+            "permalink": "/item/iphone-samsung-y-xiaomi-52421541",
+        })
+        assert item is not None
+        assert item.url == "https://www.revolico.com/item/iphone-samsung-y-xiaomi-52421541"
 
     def test_image_from_direct_field(self) -> None:
         """Imagen desde campo directo ``image``."""
