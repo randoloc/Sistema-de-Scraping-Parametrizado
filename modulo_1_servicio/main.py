@@ -22,10 +22,10 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
+
+import gradio as gr
 
 from modulo_1_servicio.api.routes_deliver import router as deliver_router
 from modulo_1_servicio.api.routes_scrape import router as scrape_router
@@ -80,12 +80,13 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "version": "0.1.0"}
 
 
-@app.get("/", response_class=HTMLResponse)
-async def root() -> str:
-    return """<!DOCTYPE html>
-<html><body style="font-family: sans-serif; max-width: 600px; margin: 40px auto;">
-<h1>ScrapperGenérico 🚀</h1>
-<p>Servicio de scraping activo.</p>
-<p><a href="/docs">Swagger API</a></p>
-<p><a href="/api/health">Health Check</a></p>
-</body></html>"""
+# ─────────────────────────────────────────────────────────────────────
+# UI NovaSearch (Gradio) montada sobre la misma app FastAPI
+# ─────────────────────────────────────────────────────────────────────
+# La raíz "/" sirve la interfaz web de búsqueda; la API REST sigue
+# disponible en /api/* y /docs. Esto es lo que HF Spaces sirve.
+from modulo_1_servicio.ui.gradio_app import build_app  # noqa: E402
+
+_demo = build_app()
+_demo.queue()
+app = gr.mount_gradio_app(app, _demo, path="/")

@@ -21,9 +21,10 @@ class TestHealth:
         assert data["status"] == "ok"
 
     def test_root_endpoint(self, client: TestClient) -> None:
+        """La raíz sirve la UI de NovaSearch (Gradio montado sobre FastAPI)."""
         response = client.get("/")
         assert response.status_code == 200
-        assert "ScrapperGenérico" in response.text
+        assert "NovaSearch" in response.text
 
     def test_swagger_docs(self, client: TestClient) -> None:
         response = client.get("/docs")
