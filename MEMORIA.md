@@ -5,7 +5,7 @@
 
 ---
 
-## Última actualización: 2026-07-23 (Sesión 7)
+## Última actualización: 2026-08-03 (Sesión 8)
 
 ---
 
@@ -32,6 +32,48 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 ---
 
 ## 📋 Historial de Sesiones
+
+### Sesión 8 — 2026-08-03: Fix crítico deploy HF — UI NovaSearch ahora visible en producción
+
+**Contexto**: El Space de HF llevaba días "desplegado" pero la raíz servía solo el HTML
+simple de FastAPI ("Servicio de scraping activo"), NO la UI de NovaSearch. El usuario
+no podía hacer una prueba real.
+
+**Causa raíz (verificada con evidencia)**:
+- `Dockerfile` ejecuta `uvicorn modulo_1_servicio.main:app`
+- `main.py` **no montaba Gradio en ningún lado** — el README prometía "Gradio montado sobre FastAPI" pero el montaje no existía en el código desplegado
+- `gradio_app.py` tenía `build_app()` lista para usar, pero nadie la llamaba en el entry point real
+
+**Qué se hizo**:
+1. ✅ Montada la UI sobre FastAPI en `main.py`:
+   `app = gr.mount_gradio_app(app, build_app(), path="/")`
+   - Raíz `/` sirve la UI NovaSearch; API sigue en `/api/*`, `/docs`, `/api/health`
+2. ✅ `gradio>=6.0` en `modulo_1_servicio/requirements-hf.txt` (antes >=4.0)
+3. ✅ Actualizado `test_root_endpoint` — ahora valida que la raíz sirve "NovaSearch" (antes esperaba el HTML viejo)
+4. ✅ Tests: **166/166 pasando**
+5. ✅ Desplegado: commit `a16a580` pusheado a HF (`1a722ef..a16a580`), Space reconstruido, `RUNNING`
+
+**Verificación en producción (todo confirmado)**:
+- ✅ Raíz → HTML Gradio 27KB con NovaSearch, Buscar, Categoría, Ayuda
+- ✅ Búsqueda real por API de Gradio → "5 resultados para 'casa'" con tarjetas completas (precios, badges, contactos, enlaces tel: y "Ver oferta")
+- ✅ `/api/health` → `{"status":"ok","version":"0.1.0"}`
+- ✅ `/gradio_api/info` y `/docs` → 200
+
+**Estado actual de la búsqueda**: modo demostración (DEMO_MODE) — resultados simulados.
+El usuario pidió desactivar el modo demo y buscar datos reales. Pendiente para próxima sesión.
+
+**Archivos modificados**:
+- `modulo_1_servicio/main.py` — Montaje Gradio sobre FastAPI (fix crítico)
+- `modulo_1_servicio/requirements-hf.txt` — gradio>=6.0
+- `tests/modulo_1/test_api.py` — test_root_endpoint actualizado
+- `MEMORIA.md` — Esta actualización
+
+**Pendiente**:
+- [ ] Desactivar DEMO_MODE: buscar datos reales de Revolico/PorlaLivre desde HF
+- [ ] Nota: los sitios cubanos (revolico.cu, porlalivre.com) NO son accesibles desde la red de desarrollo (DNS falla). Verificar si son accesibles desde los datacenters de HF
+- [ ] Investigar si el fallback silencioso a demo cuando falla el scraping real es deseable (actualmente engaña: muestra demo sin avisar claro)
+
+---
 
 ### Sesión 7 — 2026-07-23: Website Gradio funcional + Adaptadores reales + Telegram Bot
 
