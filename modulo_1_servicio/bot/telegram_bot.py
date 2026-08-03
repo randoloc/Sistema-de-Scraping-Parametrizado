@@ -15,6 +15,7 @@ Requiere:
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 from typing import Any
@@ -151,34 +152,51 @@ class TelegramBot:
         total_rank = 0
 
         for adapter in matching:
-            search_url = adapter.search_url
-            if "{query}" in search_url:
-                from urllib.parse import quote
-                search_url = search_url.replace("{query}", quote(query))
-
-            fields = tuple(
-                FieldDefinition(
-                    name=f.name,
-                    selector=f.selector,
-                    field_type=(
-                        FieldType(f.type)
-                        if f.type in ("text", "price", "url", "number", "date", "image")
-                        else FieldType.TEXT
-                    ),
-                    required=f.required,
-                )
-                for f in adapter.fields
-            )
-
-            config = ScrapeConfig(
-                source_type=SourceType.WEB_PAGE,
-                source=search_url,
-                fields=fields,
-                container_selector=adapter.container_selector,
-                rate_limit=1.0,
-            )
-
             try:
+                # ── RUTA: Adaptador Python custom (ej: Revolico Next.js) ──
+                if adapter.python_adapter:
+                    canonical_items = await self._search_python_adapter(
+                        adapter, query
+                    )
+                    for item in canonical_items:
+                        items.append({
+                            "rank": item.rank + 1,
+                            "title": item.title or "(Sin título)",
+                            "description": (item.description or "")[:120],
+                            "price": f"${item.price:,.2f}" if item.price is not None else "",
+                            "site": item.source_site,
+                            "url": item.url or "",
+                        })
+                    total_rank += len(canonical_items)
+                    continue
+
+                search_url = adapter.search_url
+                if "{query}" in search_url:
+                    from urllib.parse import quote
+                    search_url = search_url.replace("{query}", quote(query))
+
+                fields = tuple(
+                    FieldDefinition(
+                        name=f.name,
+                        selector=f.selector,
+                        field_type=(
+                            FieldType(f.type)
+                            if f.type in ("text", "price", "url", "number", "date", "image")
+                            else FieldType.TEXT
+                        ),
+                        required=f.required,
+                    )
+                    for f in adapter.fields
+                )
+
+                config = ScrapeConfig(
+                    source_type=SourceType.WEB_PAGE,
+                    source=search_url,
+                    fields=fields,
+                    container_selector=adapter.container_selector,
+                    rate_limit=1.0,
+                )
+
                 result = await self._orchestrator.run(config)
                 if not result.items:
                     continue
@@ -242,6 +260,37 @@ class TelegramBot:
             lines.append("—" * 20)
 
         return "\n".join(lines)
+
+    # ─── Adaptadores Python custom ────────────────────────────────
+
+    async def _search_python_adapter(self, adapter: Any, query: str) -> list[Any]:
+        """Ejecuta un adaptador Python custom (ej: Revolico Next.js).
+
+        El formato de ``adapter.python_adapter`` es ``module.ClassName``
+        relativo al paquete de adaptadores. Retorna lista de CanonicalItem.
+        """
+        parts = adapter.python_adapter.rsplit(".", 1)
+        if len(parts) != 2:
+            raise ValueError(
+                f"Formato inválido: '{adapter.python_adapter}'. "
+                "Esperado: 'module.ClassName'"
+            )
+        module_name, class_name = parts
+        full_module = f"modulo_1_servicio.scraping.adapters.{module_name}"
+        module = importlib.import_module(full_module)
+        cls = getattr(module, class_name)
+        logger.info(
+            "Adaptador Python cargado: %s → %s.%s",
+            adapter.python_adapter,
+            full_module,
+            class_name,
+        )
+
+        instance = cls()
+        try:
+            return await instance.search(query, page=1)
+        finally:
+            await instance.close()
 
     # ─── Manejador de Mensajes ────────────────────────────────────
 

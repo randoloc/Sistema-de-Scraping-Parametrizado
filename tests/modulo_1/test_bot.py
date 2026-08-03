@@ -176,3 +176,56 @@ class TestSearchService:
         result = await search(query="test", vertical="real_estate", site="some_adapter")
         assert "error" in result
         assert "no pertenece" in result["error"]
+
+    @patch("modulo_1_servicio.bot.search_service._get_python_adapter_class")
+    @patch("modulo_1_servicio.bot.search_service._adapter_loader")
+    async def test_search_uses_python_adapter(
+        self, mock_loader: MagicMock, mock_get_cls: MagicMock
+    ) -> None:
+        """Un adaptador con python_adapter debe usar esa ruta, no BS4."""
+        mock_adapter = MagicMock()
+        mock_adapter.name = "revolico"
+        mock_adapter.vertical = "general"
+        mock_adapter.python_adapter = "revolico_adapter.RevolicoAdapter"
+        mock_loader.get_by_vertical.return_value = [mock_adapter]
+
+        item = {
+            "title": "iPhone 15",
+            "price": 999.0,
+            "currency": "USD",
+            "url": "https://revolico.com/x",
+            "source_site": "revolico",
+            "source_url": "https://revolico.com",
+            "rank": 0,
+        }
+        instance = AsyncMock()
+        instance.search.return_value = [MagicMock(model_dump=lambda: dict(item))]
+        mock_get_cls.return_value = MagicMock(return_value=instance)
+
+        result = await search(query="iphone", vertical="general")
+        assert result["total_found"] == 1
+        assert result["items"][0]["title"] == "iPhone 15"
+        instance.search.assert_awaited_once_with("iphone", page=1)
+        instance.close.assert_awaited_once()
+
+    @patch("modulo_1_servicio.bot.search_service._adapter_loader")
+    async def test_search_python_adapter_error_does_not_abort(
+        self, mock_loader: MagicMock
+    ) -> None:
+        """Un error en el adaptador Python no debe abortar la búsqueda."""
+        mock_adapter = MagicMock()
+        mock_adapter.name = "revolico"
+        mock_adapter.vertical = "general"
+        mock_adapter.python_adapter = "revolico_adapter.RevolicoAdapter"
+        mock_loader.get_by_vertical.return_value = [mock_adapter]
+
+        with patch(
+            "modulo_1_servicio.bot.search_service._get_python_adapter_class"
+        ) as mock_get_cls:
+            instance = AsyncMock()
+            instance.search.side_effect = RuntimeError("403 bloqueado")
+            mock_get_cls.return_value = MagicMock(return_value=instance)
+
+            result = await search(query="iphone", vertical="general")
+        assert result["total_found"] == 0
+        assert result["items"] == []

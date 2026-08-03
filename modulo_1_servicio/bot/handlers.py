@@ -31,12 +31,12 @@ async def buscar_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     query_parts = " ".join(context.args)
 
-    vertical = "test"
+    vertical = "general"
     query = query_parts
     if "vertical:" in query_parts:
         parts = query_parts.split("vertical:")
         query = parts[0].strip()
-        vertical = parts[1].strip() if len(parts) > 1 else "test"
+        vertical = parts[1].strip() if len(parts) > 1 else "general"
 
     if not query:
         await update.message.reply_text(

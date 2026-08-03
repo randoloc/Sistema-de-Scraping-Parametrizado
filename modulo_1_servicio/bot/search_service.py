@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import logging
 from typing import Any
 from urllib.parse import quote
@@ -26,6 +27,28 @@ _adapter_loader = AdapterLoader()
 _adapter_loader.load_all()
 
 _normalizer = ResultNormalizer()
+
+# Cache de clases de adaptadores Python custom (ej: revolico_adapter.RevolicoAdapter)
+_python_adapter_classes: dict[str, type] = {}
+
+
+def _get_python_adapter_class(python_adapter_path: str) -> type:
+    """Importa dinámicamente y cachea una clase de adaptador Python custom."""
+    if python_adapter_path in _python_adapter_classes:
+        return _python_adapter_classes[python_adapter_path]
+
+    parts = python_adapter_path.rsplit(".", 1)
+    if len(parts) != 2:
+        raise ValueError(
+            f"Formato inválido: '{python_adapter_path}'. Esperado: 'module.ClassName'"
+        )
+    module_name, class_name = parts
+    full_module = f"modulo_1_servicio.scraping.adapters.{module_name}"
+    module = importlib.import_module(full_module)
+    cls = getattr(module, class_name)
+    _python_adapter_classes[python_adapter_path] = cls
+    logger.info("Adaptador Python cargado: %s → %s.%s", python_adapter_path, full_module, class_name)
+    return cls
 
 
 async def search(
@@ -57,6 +80,22 @@ async def search(
 
     for adapter in matching:
         try:
+            # ── RUTA: Adaptador Python custom (ej: Revolico Next.js) ──
+            if adapter.python_adapter:
+                cls = _get_python_adapter_class(adapter.python_adapter)
+                instance = cls()
+                try:
+                    canonical_items = await instance.search(query, page=1)
+                finally:
+                    await instance.close()
+
+                normalized_dicts = [item.model_dump() for item in canonical_items]
+                for item in normalized_dicts:
+                    item["rank"] = total_rank
+                    total_rank += 1
+                all_items.extend(normalized_dicts)
+                continue
+
             encoded = quote(query)
             search_url = adapter.search_url.replace("{query}", encoded).replace("{page}", str(1))
             if "{query}" not in adapter.search_url and "{page}" not in adapter.search_url:
