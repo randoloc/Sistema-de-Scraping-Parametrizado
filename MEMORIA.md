@@ -103,6 +103,8 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 **Pendiente nuevo**:
 - [ ] `porlalivre` devuelve 0 en producción: sus selectores (Sesión 7) nunca se verificaron contra HTML real → inspeccionar y crear YAML correcto o marcar como no accesible
 - [ ] Los avisos de log "Error extrayendo campo 'imagen'" son cosméticos (item se conserva con imagen=None) — opcional: `required: false` en imagen de timbirichi/itencel para logs limpios
+- [ ] **🎨 Rediseñar las tarjetas de resultados en la UI** (`gradio_app.py`): los colores de los textos no contrastan bien con el color de fondo de las tarjetas → legibilidad deficiente. Hay que hacerlo más elegante y organizado (paleta coherente, jerarquía visual clara: título/precio/sitio/ubicación, espaciado y bordes definidos)
+- [ ] **📱 App móvil Android/iOS**: crear una app para que el usuario final pueda acceder al servicio desde su teléfono (consumir la API `/api/search` de HF Spaces; evaluar PWA con el HTML de Gradio como alternativa rápida antes de una app nativa; recordar restricción: sin USD/tarjetas, todo gratuito)
 
 ---
 
@@ -318,6 +320,8 @@ Sin cambios pendientes — todo el progreso de la Sesión 9/9b está commiteado 
 (commits `420377b` + `4b7ad39` en GitHub `origin` y HF `hf-spaces`).
 
 **Pendientes de trabajo (no código)**: ver secciones "Pendiente" de Sesión 9 y 9b arriba.
+Destacan dos requisitos del usuario: 🎨 rediseño de tarjetas de resultados (contraste
+de colores deficiente) y 📱 app móvil Android/iOS para el usuario final.
 
 ---
 
