@@ -73,10 +73,36 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 - `tests/modulo_1/test_extractor.py`, `test_adapter_loader.py`, `test_site_verifier.py` — 194/194 verdes
 
 **Pendiente**:
-- [ ] Commit + push a GitHub y HF Spaces de todo el progreso (ver sección WIP abajo)
-- [ ] Probar búsqueda multi-sitio desde la UI (timbirichi + itencel + revolico en una búsqueda)
+- [x] Commit + push a GitHub y HF Spaces de todo el progreso (commits `420377b`, `4b7ad39`)
+- [x] Probar búsqueda multi-sitio desde la UI (timbirichi + itencel + revolico en una búsqueda)
 - [ ] Sitios accesibles sin adaptador: `qvaventas.com` (141KB), `cubisima.com` (41KB), `anuncioscuba.com` (353KB); SPA que requieren adapter Python: `alaventa.com`, `apululu.com`
 - [ ] Paginación multi-página en la UI (hoy siempre page=1; `max_pages` del SearchRequest no se usa en UI)
+- [ ] Verificar selectores de `porlalivre` contra HTML real (devuelve 0 en producción — selectores de Sesión 7 nunca verificados)
+
+---
+
+### Sesión 9b — 2026-08-03 (mismo día): Fix bot Telegram + verificación en producción real
+
+**Contexto**: Al revisar el flujo para el commit, se detectó que el bot de Telegram NO buscaba en Revolico: el adaptador Python (`python_adapter`) solo se soportaba en la API (`routes_search.py`) y en la UI (`gradio_app.py`), pero no en `search_service.py` ni en `telegram_bot.py::_search`. Además `handlers.py` usaba vertical `"test"` por defecto, que solo matcheaba `demo_local` (los sitios reales son `general`).
+
+**Qué se hizo**:
+1. ✅ `search_service.py`: añadida ruta `python_adapter` (importa clase, ejecuta `search(query, page=1)`, cierra instancia) — idéntica a la de `routes_search.py`
+2. ✅ `telegram_bot.py::_search`: misma ruta `python_adapter` vía helper `_search_python_adapter` + refactor del `try/except` del loop de adaptadores (antes el `try` solo envolvía el run del orchestrator, con la ruta nueva el bloqueo quedaba correctamente estructurado)
+3. ✅ `handlers.py`: vertical por defecto `"test"` → `"general"`
+4. ✅ Tests: +2 en `test_bot.py` (ruta python_adapter + error en adapter Python no aborta búsqueda) → **196/196 verdes**
+5. ✅ Commits: `4b7ad39` pusheado a GitHub y HF; Space `RUNNING` con sha `4b7ad39`
+
+**Verificación en producción (datos REALES desde HF Spaces)**:
+- ✅ `POST /api/search {"query":"iphone","vertical":"general"}` → **200 resultados reales**:
+  - itencel: 50, revolico: **120**, timbirichi: 30, porlalivre: 0
+- ✅ **Revolico funciona desde el datacenter** (objetivo central de la Sesión 8/9) — 120 items con el adapter Apollo SSR + buildID cache
+- ✅ Verificación local idéntica vía `search_service.search()` (misma ruta que usa el bot)
+
+**Archivos**: `bot/search_service.py`, `bot/telegram_bot.py`, `bot/handlers.py`, `tests/modulo_1/test_bot.py`, `MEMORIA.md`
+
+**Pendiente nuevo**:
+- [ ] `porlalivre` devuelve 0 en producción: sus selectores (Sesión 7) nunca se verificaron contra HTML real → inspeccionar y crear YAML correcto o marcar como no accesible
+- [ ] Los avisos de log "Error extrayendo campo 'imagen'" son cosméticos (item se conserva con imagen=None) — opcional: `required: false` en imagen de timbirichi/itencel para logs limpios
 
 ---
 
@@ -286,25 +312,12 @@ PySide6/QML se reemplaza por Gradio web (accesible desde cualquier navegador).
 
 ---
 
-## 🚧 WIP: Cambios sin commitear (al cierre de Sesión 9)
+## 🚧 WIP: Cambios sin commitear
 
-**Nuevos:**
-- `adapters/timbirichi.yaml` — adaptador real Timbirichi (estructura verificada en vivo)
-- `adapters/itencel.yaml` — adaptador real Itencel (WordPress RTCL)
-- `modulo_1_servicio/scraping/site_verifier.py` — verificación accesibilidad DNS+HTTP + build_adapter_yaml
-- `tests/modulo_1/test_site_verifier.py` — 11 tests
+Sin cambios pendientes — todo el progreso de la Sesión 9/9b está commiteado y pusheado
+(commits `420377b` + `4b7ad39` en GitHub `origin` y HF `hf-spaces`).
 
-**Modificados (Sesión 8-9):**
-- `adapters/revolico.yaml` — site .com + python_adapter + fields []
-- `modulo_1_servicio/scraping/adapters/revolico_adapter.py` — Apollo SSR + buildID cache
-- `modulo_1_servicio/scraping/extractors/base.py` — selector self/@self + imágenes por defecto
-- `modulo_1_servicio/scraping/adapters/models.py` — campo `required`
-- `modulo_1_servicio/ui/gradio_app.py` — pestaña "➕ Agregar sitio" + fix pestaña Ayuda + required
-- `modulo_1_servicio/bot/search_service.py`, `api/routes_search.py`, `bot/telegram_bot.py` — required
-- `tests/modulo_1/test_extractor.py`, `test_adapter_loader.py`, `test_revolico_adapter.py`
-- `.gitignore` — `.cache/` de adaptadores dinámicos
-
-**Sin commitear → próximos pasos: commit + push a GitHub (origin) y HF (hf-spaces)**
+**Pendientes de trabajo (no código)**: ver secciones "Pendiente" de Sesión 9 y 9b arriba.
 
 ---
 
