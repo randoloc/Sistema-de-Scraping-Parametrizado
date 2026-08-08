@@ -69,10 +69,12 @@ CARDS_CSS = """
  *  Fondo:     #f5f3ef (cáscara de huevo)
  *  Primary:   #1e3a5f (navy)
  *  Accent:    #b45309 (ámbar)
- *  Teal:      #0d9488 (teal para precios)
+ *  Teal:      #0f766e (teal oscuro para precios — AA 4.5:1)
  *  Cards:     #ffffff
  *  Text:      #1e293b
- *  Muted:     #64748b
+ *  Muted:     #334155
+ *  Hairstyle: #e2ddd4 (bordes)
+ *  Todos los textos sobre blanco ≥ 4.5:1 (WCAG AA).
  * ────────────────────────────────── */
 
 /* ─── Grid de tarjetas ─── */
@@ -85,18 +87,30 @@ CARDS_CSS = """
 
 /* ─── Tarjeta individual ─── */
 .result-card {
+    position: relative;
     background: #ffffff;
     border-radius: 16px;
-    box-shadow: 0 1px 3px rgba(30,58,95,0.06), 0 1px 2px rgba(30,58,95,0.04);
+    box-shadow: 0 1px 3px rgba(30,58,95,0.08), 0 2px 6px rgba(30,58,95,0.05);
     overflow: hidden;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid #e8e4de;
+    border: 1px solid #e2ddd4;
     display: flex;
     flex-direction: column;
 }
+/* Barra de acento superior (navy → ámbar → teal) */
+.result-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #1e3a5f 0%, #b45309 55%, #0f766e 100%);
+    z-index: 1;
+}
 .result-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 35px rgba(30,58,95,0.1), 0 4px 8px rgba(30,58,95,0.05);
+    box-shadow: 0 12px 35px rgba(30,58,95,0.12), 0 4px 8px rgba(30,58,95,0.05);
 }
 
 /* ─── Imagen ─── */
@@ -108,9 +122,9 @@ CARDS_CSS = """
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #94a3b8;
+    color: #78716c;
     font-size: 3rem;
-    border-bottom: 1px solid #f0ede8;
+    border-bottom: 1px solid #ebe6de;
 }
 .card-image img {
     width: 100%;
@@ -120,40 +134,43 @@ CARDS_CSS = """
 
 /* ─── Contenido ─── */
 .card-body {
-    padding: 20px 20px 16px;
+    padding: 18px 20px 16px;
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
+/* Título — punto focal de la tarjeta (navy de marca) */
 .card-title {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 700;
-    color: #1e293b;
+    color: #1e3a5f;
     line-height: 1.4;
     margin: 0;
+    letter-spacing: -0.01em;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
+/* Precio — acento secundario distinguible */
 .card-price {
     font-size: 1.6rem;
     font-weight: 800;
-    color: #0d9488;
-    margin: 2px 0;
+    color: #0f766e;
+    margin: 4px 0 2px;
     letter-spacing: -0.02em;
 }
 .card-price.free {
-    color: #6b7280;
+    color: #52525b;
     font-weight: 600;
 }
 
 .card-description {
     font-size: 0.9rem;
-    color: #475569;
+    color: #334155;
     line-height: 1.6;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -167,37 +184,43 @@ CARDS_CSS = """
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 6px;
-    padding-top: 10px;
-    border-top: 1px solid #ede9e3;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid #e2ddd4;
 }
 .card-detail {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 0.85rem;
-    color: #57534e;
+    color: #44403c;
     line-height: 1.5;
 }
 .card-detail .label {
     font-weight: 600;
-    color: #44403c;
+    color: #292524;
     min-width: 72px;
     flex-shrink: 0;
 }
 .card-detail .value {
-    color: #292524;
+    color: #1c1917;
 }
 .card-detail a {
     color: #1e3a5f;
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 600;
 }
 .card-detail a:hover {
     text-decoration: underline;
 }
 
 /* Badges */
+.card-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 2px;
+}
 .card-badge {
     display: inline-flex;
     align-items: center;
@@ -207,18 +230,22 @@ CARDS_CSS = """
     font-size: 0.75rem;
     font-weight: 600;
     line-height: 1.3;
+    border: 1px solid;
 }
 .badge-site {
-    background: #e9e3d5;
-    color: #7c5e2e;
+    background: #f0e9d8;
+    border-color: #d8c9a3;
+    color: #6b4f1d;
 }
 .badge-warranty {
-    background: #dff1f0;
+    background: #e0f2f1;
+    border-color: #9cd8d4;
     color: #0f766e;
 }
 .badge-urgent {
     background: #fde8e8;
-    color: #b91c1c;
+    border-color: #f5b8b8;
+    color: #a01b1b;
 }
 
 /* ─── Footer de la tarjeta ─── */
@@ -227,8 +254,8 @@ CARDS_CSS = """
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: #faf9f7;
-    border-top: 1px solid #e8e4de;
+    background: #fbfaf8;
+    border-top: 1px solid #e2ddd4;
     gap: 8px;
     flex-wrap: wrap;
 }
@@ -238,10 +265,12 @@ CARDS_CSS = """
     align-items: center;
     gap: 4px;
     font-size: 0.8rem;
-    color: #78716c;
+    color: #57534e;
+    font-weight: 500;
 }
 .card-site strong {
-    color: #44403c;
+    color: #292524;
+    font-weight: 600;
 }
 
 .card-footer-actions {
@@ -256,7 +285,7 @@ CARDS_CSS = """
     gap: 6px;
     padding: 8px 18px;
     background: #1e3a5f;
-    color: white;
+    color: #ffffff;
     text-decoration: none;
     border-radius: 8px;
     font-size: 0.85rem;
@@ -283,7 +312,7 @@ CARDS_CSS = """
 .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: #a8a29e;
+    color: #57534e;
 }
 .empty-state .icon {
     font-size: 4rem;
@@ -291,11 +320,12 @@ CARDS_CSS = """
 }
 .empty-state h3 {
     font-size: 1.3rem;
-    color: #64748b;
+    color: #1e3a5f;
     margin: 0 0 8px;
 }
 .empty-state p {
     font-size: 0.95rem;
+    color: #57534e;
     margin: 0;
 }
 </style>
@@ -547,7 +577,7 @@ def _render_single_card(item: dict) -> str:
             f'<span class="card-badge badge-{b.get("type","site")}">{b.get("icon","")} {b.get("label","")}</span>'
             for b in badges
         )
-        badges_html = f'<div style="display:flex;gap:6px;flex-wrap:wrap">{badge_items}</div>'
+        badges_html = f'<div class="card-badges">{badge_items}</div>'
 
     # ── Detalles dinámicos ──
     details = []
