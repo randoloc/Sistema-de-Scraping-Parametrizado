@@ -22,5 +22,6 @@ COPY README.md .
 # Puerto que HF Spaces espera
 EXPOSE 7860
 
-# Iniciar con uvicorn (Gradio montado sobre FastAPI)
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Iniciar con uvicorn (NovaSearch Gradio montado sobre FastAPI).
+# La UI NovaSearch se sirve en "/" y la API REST en /api/* y /docs.
+CMD ["uvicorn", "modulo_1_servicio.main:app", "--host", "0.0.0.0", "--port", "7860"]
