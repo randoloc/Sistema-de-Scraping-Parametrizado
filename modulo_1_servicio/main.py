@@ -89,4 +89,16 @@ from modulo_1_servicio.ui.gradio_app import build_app  # noqa: E402
 
 _demo = build_app()
 _demo.queue()
-app = gr.mount_gradio_app(app, _demo, path="/")
+# PWA nativo de Gradio: genera manifest.json (display standalone) para
+# instalar NovaSearch en el teléfono (Android/iOS) sin App Store.
+# Los meta tags Apple hacen que iOS lo trate como app instalable.
+_PWA_HEAD = """
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NovaSearch">
+<meta name="theme-color" content="#1e3a5f">
+"""
+app = gr.mount_gradio_app(
+    app, _demo, path="/", pwa=True, head=_PWA_HEAD
+)
