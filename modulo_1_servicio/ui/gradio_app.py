@@ -10,6 +10,7 @@ import importlib
 import json
 import logging
 import os
+import re
 from urllib.parse import quote
 
 import gradio as gr
@@ -65,16 +66,15 @@ def _get_python_adapter_class(python_adapter_path: str) -> type:
 # ---------------------------------------------------------------------------
 CARDS_CSS = """
 <style>
-/* ─── Paleta NovaSearch ───
- *  Fondo:     #f5f3ef (cáscara de huevo)
- *  Primary:   #1e3a5f (navy)
- *  Accent:    #b45309 (ámbar)
- *  Teal:      #0f766e (teal oscuro para precios — AA 4.5:1)
- *  Cards:     #ffffff
- *  Text:      #1e293b
- *  Muted:     #334155
- *  Hairstyle: #e2ddd4 (bordes)
- *  Todos los textos sobre blanco ≥ 4.5:1 (WCAG AA).
+/* ─── Paleta NovaSearch — Tarjetas cyan ───
+ *  Fondo página: #f5f3ef (cáscara de huevo)
+ *  Cards:        cyan medio-oscuro elegante
+ *                 gradient(#0e7490 → #155e75)
+ *  Texto cards:  #ffffff / #cffafe (blanco/cyan claro — AA 7:1+)
+ *  Precio:       #fcd34d (ámbar claro — destaca sobre cyan)
+ *  Acento:       #67e8f9 (cyan claro)
+ *  Bordes:       rgba(255,255,255,.22)
+ *  Todos los textos sobre cyan ≥ 4.5:1 (WCAG AA).
  * ────────────────────────────────── */
 
 /* ─── Grid de tarjetas ─── */
@@ -88,29 +88,29 @@ CARDS_CSS = """
 /* ─── Tarjeta individual ─── */
 .result-card {
     position: relative;
-    background: #ffffff;
+    background: linear-gradient(180deg, #0e7490 0%, #155e75 100%);
     border-radius: 16px;
-    box-shadow: 0 1px 3px rgba(30,58,95,0.08), 0 2px 6px rgba(30,58,95,0.05);
+    box-shadow: 0 1px 3px rgba(14,116,144,0.15), 0 4px 14px rgba(14,116,144,0.22);
     overflow: hidden;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid #e2ddd4;
+    border: 1px solid rgba(255,255,255,0.22);
     display: flex;
     flex-direction: column;
 }
-/* Barra de acento superior (navy → ámbar → teal) */
+/* Barra de acento superior (ámbar → cyan claro) */
 .result-card::before {
     content: "";
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #1e3a5f 0%, #b45309 55%, #0f766e 100%);
+    height: 4px;
+    background: linear-gradient(90deg, #fcd34d 0%, #67e8f9 100%);
     z-index: 1;
 }
 .result-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 35px rgba(30,58,95,0.12), 0 4px 8px rgba(30,58,95,0.05);
+    box-shadow: 0 14px 38px rgba(14,116,144,0.30), 0 4px 10px rgba(14,116,144,0.18);
 }
 
 /* ─── Imagen ─── */
@@ -118,13 +118,13 @@ CARDS_CSS = """
     width: 100%;
     height: 200px;
     object-fit: cover;
-    background: #f0ede8;
+    background: #0b556b;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #78716c;
+    color: #7dd3fc;
     font-size: 3rem;
-    border-bottom: 1px solid #ebe6de;
+    border-bottom: 1px solid rgba(255,255,255,0.16);
 }
 .card-image img {
     width: 100%;
@@ -141,11 +141,11 @@ CARDS_CSS = """
     gap: 10px;
 }
 
-/* Título — punto focal de la tarjeta (navy de marca) */
+/* Título — blanco, foco principal */
 .card-title {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #1e3a5f;
+    color: #ffffff;
     line-height: 1.4;
     margin: 0;
     letter-spacing: -0.01em;
@@ -155,22 +155,22 @@ CARDS_CSS = """
     overflow: hidden;
 }
 
-/* Precio — acento secundario distinguible */
+/* Precio — ámbar claro, destaca sobre cyan */
 .card-price {
     font-size: 1.6rem;
     font-weight: 800;
-    color: #0f766e;
+    color: #fcd34d;
     margin: 4px 0 2px;
     letter-spacing: -0.02em;
 }
 .card-price.free {
-    color: #52525b;
+    color: #e0f2fe;
     font-weight: 600;
 }
 
 .card-description {
     font-size: 0.9rem;
-    color: #334155;
+    color: #e0f2fe;
     line-height: 1.6;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -186,27 +186,27 @@ CARDS_CSS = """
     gap: 6px;
     margin-top: 8px;
     padding-top: 12px;
-    border-top: 1px solid #e2ddd4;
+    border-top: 1px solid rgba(255,255,255,0.20);
 }
 .card-detail {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 0.85rem;
-    color: #44403c;
+    color: #cffafe;
     line-height: 1.5;
 }
 .card-detail .label {
     font-weight: 600;
-    color: #292524;
+    color: #f0fdfa;
     min-width: 72px;
     flex-shrink: 0;
 }
 .card-detail .value {
-    color: #1c1917;
+    color: #ffffff;
 }
 .card-detail a {
-    color: #1e3a5f;
+    color: #a5f3fc;
     text-decoration: none;
     font-weight: 600;
 }
@@ -233,19 +233,19 @@ CARDS_CSS = """
     border: 1px solid;
 }
 .badge-site {
-    background: #f0e9d8;
-    border-color: #d8c9a3;
-    color: #6b4f1d;
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.35);
+    color: #ffffff;
 }
 .badge-warranty {
-    background: #e0f2f1;
-    border-color: #9cd8d4;
-    color: #0f766e;
+    background: rgba(103,232,249,0.16);
+    border-color: rgba(103,232,249,0.45);
+    color: #cffafe;
 }
 .badge-urgent {
-    background: #fde8e8;
-    border-color: #f5b8b8;
-    color: #a01b1b;
+    background: rgba(253,164,175,0.16);
+    border-color: rgba(253,164,175,0.45);
+    color: #fecdd3;
 }
 
 /* ─── Footer de la tarjeta ─── */
@@ -254,8 +254,8 @@ CARDS_CSS = """
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: #fbfaf8;
-    border-top: 1px solid #e2ddd4;
+    background: rgba(11,85,107,0.55);
+    border-top: 1px solid rgba(255,255,255,0.16);
     gap: 8px;
     flex-wrap: wrap;
 }
@@ -265,11 +265,11 @@ CARDS_CSS = """
     align-items: center;
     gap: 4px;
     font-size: 0.8rem;
-    color: #57534e;
+    color: #a5f3fc;
     font-weight: 500;
 }
 .card-site strong {
-    color: #292524;
+    color: #ffffff;
     font-weight: 600;
 }
 
@@ -284,28 +284,29 @@ CARDS_CSS = """
     align-items: center;
     gap: 6px;
     padding: 8px 18px;
-    background: #1e3a5f;
-    color: #ffffff;
+    background: #ffffff;
+    color: #0b556b;
     text-decoration: none;
     border-radius: 8px;
     font-size: 0.85rem;
     font-weight: 600;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s;
 }
 .card-link:hover {
-    background: #2c5282;
+    background: #fcd34d;
+    color: #0b3b4d;
 }
 
-/* Botón Contactar (estilo secundario) */
+/* Botón Contactar (estilo secundario translúcido) */
 .contact-btn {
-    background: #ffffff;
-    color: #1e3a5f;
-    border: 1.5px solid #d4cfc7;
+    background: rgba(255,255,255,0.12);
+    color: #ffffff;
+    border: 1.5px solid rgba(255,255,255,0.45);
 }
 .contact-btn:hover {
-    background: #f5f3ef;
-    color: #1e3a5f;
-    border-color: #1e3a5f;
+    background: rgba(255,255,255,0.24);
+    color: #ffffff;
+    border-color: #ffffff;
 }
 
 /* ─── Estados ─── */
@@ -478,11 +479,31 @@ async def search_action(
 
     progress(1.0, desc="Listo")
 
+    # ─── Relevancia: descartar anuncios que no coinciden con el criterio ───
+    raw_count = len(all_items)
+    all_items = _filter_by_relevance(all_items, query)
+    filtered_out = raw_count - len(all_items)
+
     # ─── Sin fallback a demo: se reporta el resultado REAL y los errores ───
     if not all_items:
         errors_section = ""
         if site_errors:
             errors_section = "\n\n### Detalles por sitio\n" + "\n".join(site_errors)
+        if raw_count and filtered_out:
+            msg = (
+                f"🔎 No hay anuncios que coincidan con **'{query}'** en "
+                f"**{category}**. Los sitios devolvieron {raw_count} anuncio(s) "
+                f"que no coinciden con el criterio de búsqueda."
+            )
+            return (
+                msg,
+                _empty_state_html(
+                    "Sin coincidencias",
+                    f"Los {raw_count} anuncio(s) obtenidos no coinciden con "
+                    f"**'{query}'**. Prueba con otros términos.",
+                ),
+                "[]",
+            )
         msg = (
             f"😕 No se obtuvieron resultados para **'{query}'** en **{category}**. "
             f"Los sitios no respondieron o están bloqueando el acceso."
@@ -502,6 +523,11 @@ async def search_action(
         f"✅ **{len(all_items)} resultados** "
         f"en {len(matching)} sitio(s) para **'{query}'**"
     )
+    if filtered_out:
+        summary += (
+            f" <span style='color:#94a3b8;font-size:0.85rem'>"
+            f"({filtered_out} descartado(s) por no coincidir)</span>"
+        )
 
     cards = _render_cards(all_items)
     return summary, cards, json.dumps(all_items, indent=2, ensure_ascii=False)
@@ -535,6 +561,77 @@ def _build_item(
         "condition": kwargs.get("condition", ""),  # nuevo/usado
         "badges": kwargs.get("badges", []),
     }
+
+
+# ---------------------------------------------------------------------------
+# Relevancia: pegar los resultados al criterio de búsqueda
+# ---------------------------------------------------------------------------
+# Tabla de transliteración de acentos españoles (para matching insensible a
+# acentos: "electrico" == "eléctrico")
+_ACCENT_TRANS = str.maketrans(
+    "áàäâãéèëêíìïîóòöôõúùüûñç"
+    "ÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇ",
+    "aaaaaeeeeiiiiooooouuuunc"
+    "AAAAAEEEEIIIIOOOOOUUUUNC",
+)
+
+# Palabras vacías comunes del español: no aportan criterio de búsqueda
+_STOPWORDS_ES = {
+    "de", "la", "el", "los", "las", "un", "una", "unos", "unas",
+    "y", "e", "o", "u", "a", "en", "con", "para", "por", "que",
+    "se", "su", "sus", "al", "del", "me", "mi", "tu", "es", "son",
+    "hay", "no", "mas", "menos", "muy", "todo", "todos", "sobre",
+    "entre", "desde", "hasta", "sin", "pero", "este", "esta", "esto",
+    # Verbos genéricos de clasificados (no aportan criterio)
+    "vendo", "vende", "vender", "compra", "compro", "comprar",
+    "busco", "busca", "buscar", "ofrezco", "ofrece", "necesito",
+    "urgente", "cambio", "permuto", "alquilo", "alquiler",
+}
+
+
+def _normalize_for_match(text: str) -> str:
+    """Normaliza texto para comparar: minúsculas, sin acentos, solo alfanuméricos."""
+    return re.sub(r"[^a-z0-9 ]+", " ", text.lower().translate(_ACCENT_TRANS))
+
+
+def _query_terms(query: str) -> list[str]:
+    """Extrae los términos significativos de la consulta (sin stopwords)."""
+    terms = _normalize_for_match(query).split()
+    return [t for t in terms if len(t) > 1 and t not in _STOPWORDS_ES]
+
+
+def _relevance_score(item: dict, terms: list[str]) -> int:
+    """Cuenta cuántos términos de la consulta aparecen en título + descripción."""
+    haystack = _normalize_for_match(
+        f'{item.get("title", "")} {item.get("description", "")}'
+    )
+    return sum(1 for t in terms if t in haystack)
+
+
+def _filter_by_relevance(items: list[dict], query: str) -> list[dict]:
+    """Filtra y ordena items para que coincidan con el criterio de búsqueda.
+
+    - Primero intenta coincidencia estricta (TODOS los términos en el anuncio).
+    - Si no hay ninguno así, usa coincidencia parcial (al menos un término)
+      para no dejar la página vacía.
+    - Ordena por cantidad de términos coincidentes (más relevante primero).
+    """
+    terms = _query_terms(query)
+    if not terms:
+        return items
+
+    scored = [(item, _relevance_score(item, terms)) for item in items]
+
+    strict = [(it, s) for it, s in scored if s >= len(terms)]
+    pool = strict if strict else [(it, s) for it, s in scored if s >= 1]
+
+    pool.sort(key=lambda pair: (-pair[1], pair[0].get("rank", 0)))
+    filtered = [it for it, _ in pool]
+
+    # Re-numerar ranks para reflejar el orden final
+    for i, it in enumerate(filtered, 1):
+        it["rank"] = i
+    return filtered
 
 
 # ---------------------------------------------------------------------------
@@ -617,7 +714,7 @@ def _render_single_card(item: dict) -> str:
         )
     else:
         link_html = (
-            f'<span class="card-link" style="background:#94a3b8;cursor:default">'
+            f'<span class="card-link" style="background:rgba(255,255,255,0.14);color:#cffafe;cursor:default">'
             f'🔗 No disponible</span>'
         )
 
@@ -639,7 +736,7 @@ def _render_single_card(item: dict) -> str:
         )
     else:
         contact_html = (
-            f'<span class="card-link contact-btn" style="background:#cbd5e1;cursor:default;opacity:0.6">'
+            f'<span class="card-link contact-btn" style="opacity:0.6;cursor:default">'
             f'📞 Contactar</span>'
         )
 
