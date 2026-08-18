@@ -1,9 +1,15 @@
 # Adaptador: Porlalivre (porlalivre.com)
 # Clasificados cubanos — múltiples categorías
-# NOTA: El sitio está en renovación (2026). Se activará cuando vuelva.
+# ─────────────────────────────────────────────────────────────
+# ESTADO: DESHABILITADO (2026)
+# El sitio fue renovado y ahora usa JavaScript SPA (similar a revolico.com).
+# Los selectores CSS de BS4 no funcionan con HTML renderizado por JS.
+# Los selectores son placeholders → no devuelven resultados.
+# Se reactivará cuando se implemente un extractor headless/browser.
+# ─────────────────────────────────────────────────────────────
 name: porlalivre
 site: porlalivre.com
-vertical: general
+vertical: disabled
 search_url: "https://www.porlalivre.com/search/{query}"
 container_selector: "article.item, div.listing, div.ad-item"
 pagination: "?page={page}"

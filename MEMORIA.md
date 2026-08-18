@@ -5,7 +5,45 @@
 
 ---
 
-## Última actualización: 2026-08-03 (Sesión 9)
+## Última actualización: 2026-08-18 (Sesión 11)
+
+---
+
+### Sesión 11 — 2026-08-18: Deploy HF Spaces + fixes pendientes
+
+**Contexto**: El usuario pidió "proceder y hacer todo, al final levantar el website en HF". Se evaluó el estado del proyecto: 196 tests pasando, Space corriendo en HF, adaptadores funcionando (Revolico 120 items, Timbirichi 30, Itencel 50).
+
+**Qué se hizo**:
+1. ✅ Verificación de estado: 196/196 tests OK, HF Space HEALTHY
+2. ✅ Fix porlalivre: marcado como deshabilitado (vertical: disabled) — el sitio está en renovación 2026 y es SPA, los selectores BS4 no funcionan
+3. ✅ Fix logs cosméticos: `required: false` en campos imagen de adaptadores YAML (itencel, timbirichi)
+4. ✅ Push a GitHub y HF Spaces
+5. ✅ Verificación en producción
+
+**Archivos**: `adapters/porlalivre.yaml`, `adapters/itencel.yaml`, `adapters/timbirichi.yaml`, `MEMORIA.md`
+
+---
+
+### Sesión 10 — 2026-08-13: Deploy HF Spaces con PWA + rediseño de tarjetas
+
+**Contexto**: Retomando tras la Sesión 9b. El usuario probó dos tokens; el primero (`sk-...`) NO era de HF (OpenAI/DeepSeek/OpenRouter/Anthropic lo rechazaron; HF respondió "Invalid username or password"). El segundo, un token `hf_***` (token `NovaSearch`, rol write, cuenta `Randolo`, org `CromixSoft`), sí era válido. Se validó vía `GET https://huggingface.co/api/whoami-v2`.
+
+**Qué se hizo**:
+1. ✅ **Remote `hf-spaces` reconectado** — se había perdido (MEMORIA lo mencionaba, pero `git remote -v` solo tenía `origin`). Recreado con el token HF: `git remote add hf-spaces https://Randolo:<token>@huggingface.co/spaces/Randolo/novasearch`
+2. ✅ **Push a HF Spaces**: `819692b..36b253c` (4 commits pendientes): `8c6a6d8` (fix Dockerfile.hf), `ad6db20` (rediseño tarjetas WCAG AA), `1916265` (PWA instalable), `36b253c` (filtro relevancia + tarjetas cyan)
+3. ✅ **Push a GitHub**: `1916265..36b253c` (1 commit que faltaba)
+4. ✅ **Build desplegado**: Space `Randolo/novasearch` pasó BUILDING → RUNNING (~1 min en cpu-basic)
+5. ✅ **Verificación en producción**:
+   - Raíz `/`: HTTP 200, 46KB, UI NovaSearch (Buscar/Categoría/Ayuda)
+   - `GET /api/health` → `{"status":"ok","version":"0.1.0"}`
+   - `POST /api/search {"query":"iphone"}` → **200 resultados reales**: itencel 50, revolico 120, timbirichi 30, porlalivre 0 (182 con precio, 184 con imagen, 200 con ubicación)
+   - ⚠️ Nota API: la respuesta usa claves `items` y `total_found`, NO `results`/`data`
+
+**Archivos**: `MEMORIA.md` (esta actualización), `.git/config` (remote hf-spaces, no se commitea)
+
+**Pendiente (heredado de Sesión 9b)**:
+- [ ] `porlalivre` sigue devolviendo 0 en producción (selectores de Sesión 7 nunca verificados contra HTML real) → **Resuelto Sesión 11: sitio deshabilitado (SPA en renovación 2026)**
+- [ ] Logs cosméticos "Error extrayendo campo 'imagen'" (item se conserva con imagen=None) → **Resuelto Sesión 11: `required: false` en imagen de itencel/timbirichi**
 
 ---
 
@@ -77,7 +115,7 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 - [x] Probar búsqueda multi-sitio desde la UI (timbirichi + itencel + revolico en una búsqueda)
 - [ ] Sitios accesibles sin adaptador: `qvaventas.com` (141KB), `cubisima.com` (41KB), `anuncioscuba.com` (353KB); SPA que requieren adapter Python: `alaventa.com`, `apululu.com`
 - [ ] Paginación multi-página en la UI (hoy siempre page=1; `max_pages` del SearchRequest no se usa en UI)
-- [ ] Verificar selectores de `porlalivre` contra HTML real (devuelve 0 en producción — selectores de Sesión 7 nunca verificados)
+- [ ] Verificar selectores de `porlalivre` contra HTML real (devuelve 0 en producción — selectores de Sesión 7 nunca verificados) → **Resuelto Sesión 11: sitio deshabilitado (SPA en renovación 2026, selectores BS4 no funcionan)**
 
 ---
 
@@ -101,8 +139,8 @@ modulo_3_resultados/   → Templates de entrega (email, web, WhatsApp)
 **Archivos**: `bot/search_service.py`, `bot/telegram_bot.py`, `bot/handlers.py`, `tests/modulo_1/test_bot.py`, `MEMORIA.md`
 
 **Pendiente nuevo**:
-- [ ] `porlalivre` devuelve 0 en producción: sus selectores (Sesión 7) nunca se verificaron contra HTML real → inspeccionar y crear YAML correcto o marcar como no accesible
-- [ ] Los avisos de log "Error extrayendo campo 'imagen'" son cosméticos (item se conserva con imagen=None) — opcional: `required: false` en imagen de timbirichi/itencel para logs limpios
+- [ ] `porlalivre` devuelve 0 en producción: sus selectores (Sesión 7) nunca se verificaron contra HTML real → inspeccionar y crear YAML correcto o marcar como no accesible → **Resuelto Sesión 11: sitio deshabilitado (vertical: disabled)**
+- [ ] Los avisos de log "Error extrayendo campo 'imagen'" son cosméticos (item se conserva con imagen=None) — opcional: `required: false` en imagen de timbirichi/itencel para logs limpios → **Resuelto Sesión 11**
 - [ ] **🎨 Rediseñar las tarjetas de resultados en la UI** (`gradio_app.py`): los colores de los textos no contrastan bien con el color de fondo de las tarjetas → legibilidad deficiente. Hay que hacerlo más elegante y organizado (paleta coherente, jerarquía visual clara: título/precio/sitio/ubicación, espaciado y bordes definidos)
 - [ ] **📱 App móvil Android/iOS**: crear una app para que el usuario final pueda acceder al servicio desde su teléfono (consumir la API `/api/search` de HF Spaces; evaluar PWA con el HTML de Gradio como alternativa rápida antes de una app nativa; recordar restricción: sin USD/tarjetas, todo gratuito)
 
@@ -316,12 +354,7 @@ PySide6/QML se reemplaza por Gradio web (accesible desde cualquier navegador).
 
 ## 🚧 WIP: Cambios sin commitear
 
-Sin cambios pendientes — todo el progreso de la Sesión 9/9b está commiteado y pusheado
-(commits `420377b` + `4b7ad39` en GitHub `origin` y HF `hf-spaces`).
-
-**Pendientes de trabajo (no código)**: ver secciones "Pendiente" de Sesión 9 y 9b arriba.
-Destacan dos requisitos del usuario: 🎨 rediseño de tarjetas de resultados (contraste
-de colores deficiente) y 📱 app móvil Android/iOS para el usuario final.
+Sin cambios pendientes — todo commiteado y pusheado tras Sesión 11.
 
 ---
 

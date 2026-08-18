@@ -32,6 +32,7 @@ fields:
   - name: imagen
     selector: "img.rtcl-thumbnail"
     type: image
+    required: false
   - name: ubicacion
     selector: "li:has(.fa-map-marker)"
     type: text

@@ -36,6 +36,7 @@ fields:
   - name: imagen
     selector: "img.thumbnail"
     type: image
+    required: false
   - name: ubicacion
     selector: "li:has(.icon-location-pin)"
     type: text
