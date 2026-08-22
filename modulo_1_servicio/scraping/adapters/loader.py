@@ -59,9 +59,19 @@ class AdapterLoader:
         """Retorna todos los adaptadores cargados."""
         return list(self._adapters.values())
 
+    def get_by_category(self, category: str) -> list[SiteAdapter]:
+        """Devuelve adaptadores cuya lista `categories` incluye `category`,
+        o cuyo `vertical` == category (retrocompatibilidad)."""
+        result = []
+        for a in self.get_all():
+            cats = getattr(a, "categories", None) or [a.vertical]
+            if category in cats or a.vertical == category:
+                result.append(a)
+        return result
+
     def get_by_vertical(self, vertical: str) -> list[SiteAdapter]:
-        """Filtra adaptadores por vertical."""
-        return [a for a in self._adapters.values() if a.vertical == vertical]
+        # Mantener retrocompatibilidad: delegar a get_by_category
+        return self.get_by_category(vertical)
 
     def get(self, name: str) -> Optional[SiteAdapter]:
         """Obtiene un adaptador por su nombre."""

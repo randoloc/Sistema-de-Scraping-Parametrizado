@@ -163,7 +163,7 @@ async def search_adapters(payload: SearchRequest) -> dict[str, Any]:
             )
         matching = [adapter]
     else:
-        matching = _adapter_loader.get_by_vertical(payload.vertical)
+        matching = _adapter_loader.get_by_category(payload.vertical)
         if not matching:
             raise HTTPException(
                 status_code=404,

@@ -85,7 +85,7 @@ async def health() -> dict[str, str]:
 # ─────────────────────────────────────────────────────────────────────
 # La raíz "/" sirve la interfaz web de búsqueda; la API REST sigue
 # disponible en /api/* y /docs. Esto es lo que HF Spaces sirve.
-from modulo_1_servicio.ui.gradio_app import build_app  # noqa: E402
+from modulo_1_servicio.ui.gradio_app import build_app, COSMOS_HEAD  # noqa: E402
 
 _demo = build_app()
 _demo.queue()
@@ -99,6 +99,9 @@ _PWA_HEAD = """
 <meta name="apple-mobile-web-app-title" content="NovaSearch">
 <meta name="theme-color" content="#1e3a5f">
 """
+# El fondo animado "cosmos" (canvas + puter.js) se inyecta en el <head>.
+# En Gradio 6 el parámetro `head` se pasa en mount_gradio_app/launch, no en
+# el constructor de Blocks; por eso lo combinamos aquí con el head PWA.
 app = gr.mount_gradio_app(
-    app, _demo, path="/", pwa=True, head=_PWA_HEAD
+    app, _demo, path="/", pwa=True, head=_PWA_HEAD + COSMOS_HEAD
 )

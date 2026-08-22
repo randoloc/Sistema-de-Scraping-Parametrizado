@@ -8,6 +8,16 @@
 name: revolico
 site: revolico.com
 vertical: general
+categories:
+  - general
+  - inmuebles
+  - vehiculos
+  - electronica
+  - hogar
+  - moda
+  - empleo
+  - animales
+  - educacion
 search_url: "https://www.revolico.com/search?q={query}"
 python_adapter: "revolico_adapter.RevolicoAdapter"
 container_selector: null

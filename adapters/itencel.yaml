@@ -15,6 +15,16 @@
 name: itencel
 site: itencel.com
 vertical: general
+categories:
+  - general
+  - inmuebles
+  - vehiculos
+  - electronica
+  - hogar
+  - moda
+  - empleo
+  - animales
+  - educacion
 search_url: "https://itencel.com/all-ads/page/{page}/?q={query}"
 pagination: "/all-ads/page/{page}/?q={query}"
 container_selector: ".rtcl-listing-item"

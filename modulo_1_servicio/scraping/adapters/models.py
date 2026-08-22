@@ -26,6 +26,14 @@ class SiteAdapter(BaseModel):
     name: str = Field(description="Identificador único del adaptador")
     site: str = Field(description="Dominio del sitio (ej: mercadolibre.com.mx)")
     vertical: str = Field(description="Categoría vertical (ej: cars, real_estate, jobs)")
+    categories: list[str] = Field(
+        default_factory=lambda: ["general"],
+        description=(
+            "Ids de categorías curadas (ver SEARCH_CATEGORIES) bajo las cuales "
+            "el adaptador debe aparecer al buscar. Por defecto ['general']. "
+            "Mantiene retrocompatibilidad con adaptadores que no lo declaran."
+        ),
+    )
     search_url: str = Field(
         description="URL de búsqueda con templates {query} y {page}",
     )

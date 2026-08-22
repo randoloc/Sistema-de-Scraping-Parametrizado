@@ -16,6 +16,16 @@
 name: timbirichi
 site: timbirichi.com
 vertical: general
+categories:
+  - general
+  - inmuebles
+  - vehiculos
+  - electronica
+  - hogar
+  - moda
+  - empleo
+  - animales
+  - educacion
 search_url: "https://www.timbirichi.com/buscar/pagina/{page}?q={query}"
 pagination: "/buscar/pagina/{page}?q={query}"
 container_selector: "a.anuncio-list"

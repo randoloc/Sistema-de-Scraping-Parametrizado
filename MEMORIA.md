@@ -5,7 +5,27 @@
 
 ---
 
-## Última actualización: 2026-08-18 (Sesión 11)
+## Última actualización: 2026-08-22 (Sesión 12 — commit + deploy)
+
+---
+
+### Sesión 12 — 2026-08-21: Categorías de búsqueda curadas + fondo animado "cosmos" (puter.js)
+
+**Contexto**: El usuario pidió (en español) crear las categorías de búsqueda él mismo y agregarlas, modificando lo necesario, y además generar un "corto video" con la librería **puter.js** (sin audio) mostrando una estrella animada buscando en el universo un objeto preciado, colocado como fondo del website.
+
+**Qué se hizo**:
+1. ✅ **Catálogo de categorías curadas** desacoplado de los `vertical:` crudos. 9 categorías: `🌐 Todo, 🏠 Inmuebles, 🚗 Vehículos, 💻 Electrónica, 🛋️ Hogar y Muebles, 👗 Moda y Accesorios, 💼 Empleo y Servicios, 🐾 Animales, 📚 Educación`.
+2. ✅ **Wiring**: nuevo campo `categories` en `SiteAdapter` + `get_by_category()` en `AdapterLoader` (con retrocompatibilidad en `get_by_vertical`). Los adaptadores activos (`revolico`, `timbirichi`, `itencel`) se etiquetaron con las 9 categorías; `porlalivre` (disabled) y `demo_local` (test) quedan fuera. Dropdown de la UI ahora usa las etiquetas con emoji.
+3. ✅ **Fondo animado "cosmos"**: `modulo_1_servicio/ui/cosmos_background.py` — `<canvas>` fijo a pantalla completa con starfield, nebulosa procedural, una gema/diamante pulsante ("objeto preciado") y una estrella héroe luminosa que deambula buscando y orbita la gema. **Usa puter.js** (`puter.ai.txt2img`) para enriquecer la nebulosa, con fallback procedural si no hay sesión/conexión. Sin audio, en loop.
+4. ✅ **Inyección JS en Gradio 6.20**: se registra vía `demo.load(js=COSMOS_JS)` (cubierto en `app.py` HF y `main.py`); `head=COSMOS_HEAD` como respaldo en `app.py` (`launch`) y `main.py` (`mount_gradio_app`). El body de la página se hizo transparente y se agregó `#cosmos-overlay` (rgba claro 0.72) para legibilidad.
+5. ✅ Verificación: `build_app()` OK, 62/62 tests de adapter/loader/categorías pasan.
+
+**Archivos**: `modulo_1_servicio/scraping/categories.py` (nuevo), `modulo_1_servicio/ui/cosmos_background.py` (nuevo), `modulo_1_servicio/scraping/adapters/models.py`, `modulo_1_servicio/scraping/adapters/loader.py`, `modulo_1_servicio/ui/gradio_app.py`, `modulo_1_servicio/api/routes_search.py`, `adapters/revolico.yaml`, `adapters/timbirichi.yaml`, `adapters/itencel.yaml`, `app.py`, `MEMORIA.md`.
+
+**Notas / aprendizajes**:
+- ⚠️ **Gradio 6.20 ignora `gr.Blocks(head=...)`** (silente, sin error). El JS cliente debe inyectarse vía `demo.load(js=...)` o `launch(head=...)`/`mount_gradio_app(head=...)`. Los `<script>` en `gr.HTML` NO se ejecutan (innerHTML).
+- ⚠️ **puter.js no genera video**: el "corto video" se entregó como animación de canvas en loop. `puter.ai.txt2img` requiere auth, así que normalmente renderiza la nebulosa procedural (fallback). Si se quiere un `.mp4` real, generarlo por otra vía.
+- El overlay claro (0.72) prioriza legibilidad; bajar el alpha en `#cosmos-overlay` para hacer el fondo más visible.
 
 ---
 
@@ -354,7 +374,7 @@ PySide6/QML se reemplaza por Gradio web (accesible desde cualquier navegador).
 
 ## 🚧 WIP: Cambios sin commitear
 
-Sin cambios pendientes — todo commiteado y pusheado tras Sesión 11.
+Sesión 12 (categorías curadas + fondo cosmos) commiteada y pusheada a GitHub + HF Spaces el 2026-08-22. 196/196 tests OK. Space reconstruido y verificado en producción.
 
 ---
 

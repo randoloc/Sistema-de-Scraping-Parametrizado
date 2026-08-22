@@ -16,6 +16,8 @@ from urllib.parse import quote
 import gradio as gr
 
 from modulo_1_servicio.scraping.adapters.loader import AdapterLoader
+from modulo_1_servicio.scraping.categories import SEARCH_CATEGORIES, LABEL_TO_ID
+from modulo_1_servicio.ui.cosmos_background import COSMOS_HEAD, COSMOS_JS
 from modulo_1_servicio.scraping.engine import Orchestrator
 from modulo_1_servicio.scraping.extractors.beautifulsoup_extractor import (
     BeautifulSoupExtractor,
@@ -358,8 +360,9 @@ async def search_action(
     if os.environ.get("DEMO_MODE") == "1":
         return _generate_demo_results(query, category)
 
-    # Buscar adaptadores por categoría
-    matching = _adapter_loader.get_by_vertical(category)
+    # Buscar adaptadores por categoría (mapear label → id curated)
+    cat_id = LABEL_TO_ID.get(category, category)
+    matching = _adapter_loader.get_by_category(cat_id)
 
     if not matching:
         msg = f"⚠️ No hay sitios disponibles en la categoría **'{category}'**."
@@ -885,14 +888,15 @@ def _generate_demo_results(query: str, category: str) -> tuple:
 # ---------------------------------------------------------------------------
 def build_app() -> gr.Blocks:
     """Construye la interfaz de usuario con tarjetas modernas."""
-    verticals = _get_verticals()
+    # Categorías curadas (vertical taxonomy desacoplada de los vertical: crudos)
+    category_labels = _get_category_labels()
 
     css = """
     footer {display:none !important}
     .gradio-container {max-width: 1100px !important; margin: 0 auto !important}
     .gr-box {border: none !important; box-shadow: none !important}
-    body {background: #f5f3ef !important}
-    .gradio-container {background: #f5f3ef !important}
+    body {background: transparent !important}
+    .gradio-container {background: transparent !important}
     /* Primary button → navy */
     button.gr-button-primary {background: #1e3a5f !important; border-color: #1e3a5f !important}
     button.gr-button-primary:hover {background: #2c5282 !important; border-color: #2c5282 !important}
@@ -909,6 +913,19 @@ def build_app() -> gr.Blocks:
     demo.css = css
     demo.theme = gr.themes.Soft()
     with demo:
+        # Overlay de legibilidad: mantiene el texto/cards legibles sobre el cosmos
+        gr.HTML(
+            '<div id="cosmos-overlay" style="position:fixed;inset:0;'
+            'background:rgba(245,243,239,0.72);z-index:-1;pointer-events:none;"></div>'
+        )
+
+        # Fondo animado "cosmos" (una estrella buscando un objeto preciado) vía
+        # puter.js. Se registra en el evento `load` del cliente para que funcione
+        # tanto en demo.launch() (app.py / HF Spaces) como en mount_gradio_app
+        # (main.py). La animación es procedural y usa puter.ai.txt2img para
+        # enriquecer el fondo si hay sesión/conexión; si no, cae a nebulosa procedural.
+        demo.load(js=COSMOS_JS)
+
         # ─── Encabezado ──────────────────────────────────────
         gr.HTML(
             f"""
@@ -932,7 +949,7 @@ def build_app() -> gr.Blocks:
                     <span style="background:rgba(255,255,255,0.1);padding:4px 14px;
                                  border-radius:20px">🏪 {_adapter_loader.count} sitios</span>
                     <span style="background:rgba(255,255,255,0.1);padding:4px 14px;
-                                 border-radius:20px">📂 {len(verticals)} categorías</span>
+                                 border-radius:20px">📂 {len(SEARCH_CATEGORIES)} categorías</span>
                 </div>
             </div>
             """
@@ -954,8 +971,8 @@ def build_app() -> gr.Blocks:
                     )
                     category_dropdown = gr.Dropdown(
                         label="Categoría",
-                        choices=verticals,
-                        value=verticals[0] if verticals else None,
+                        choices=category_labels,
+                        value=category_labels[0] if category_labels else None,
                         scale=1,
                         interactive=True,
                     )
@@ -1180,6 +1197,11 @@ def build_app() -> gr.Blocks:
 # ---------------------------------------------------------------------------
 def _get_verticals() -> list[str]:
     return sorted({a.vertical for a in _adapter_loader.get_all()})
+
+
+def _get_category_labels() -> list[str]:
+    """Devuelve las etiquetas (labels) de la taxonomía curada de categorías."""
+    return [c["label"] for c in SEARCH_CATEGORIES]
 
 
 # ---------------------------------------------------------------------------
